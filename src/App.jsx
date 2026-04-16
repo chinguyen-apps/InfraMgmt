@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, X, Check, AlertCircle, Building2, LogIn, LogOut, KeyRound, Loader2, List as ListIcon, Table as TableIcon, AppWindow, Trash2, Plus } from 'lucide-react';
 import { HEADER_COLOR, BG_BODY, BG_CONTAINER, SYSTEM_MODULES, modalConfigs } from './constants';
 import { hashSHA256, callApi } from './helpers';
@@ -81,7 +81,7 @@ export default function App() {
             if (item.permissions !== undefined) {
               try {
                 normalized.permissions = typeof item.permissions === 'string' ? JSON.parse(item.permissions) : item.permissions;
-                if (Object.keys(normalized.permissions).length > 0) hasValue = true;
+                if (Object.keys(normalized.permissions || {}).length > 0) hasValue = true;
               } catch(e) { normalized.permissions = {}; }
             }
             return hasValue ? normalized : null; 
@@ -91,12 +91,22 @@ export default function App() {
         setServers(processData('server', d.server, modalConfigs.server));
         setVips(processData('vip', d.vip, modalConfigs.vip));
         setDns(processData('dns', d.dns, modalConfigs.dns));
-        setConnections(processData('connection', d.connection, modalConfigs.connection));
         setPermissions(processData('permission', d.permission, modalConfigs.permission));
         setApps(processData('app', d.app, modalConfigs.app));
         setParameters(processData('parameter', d.parameter, modalConfigs.parameter));
         setUserGroups(processData('userGroup', d.userGroup, [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền thao tác'}]));
         setSystemUsers(processData('systemUser', d.systemUser, [{key: 'username', label: 'Tài khoản'}, {key: 'password', label: 'Mật khẩu'}, {key: 'fullName', label: 'Họ Tên'}, {key: 'groupId', label: 'Nhóm Quyền'}]));
+        
+        // Sửa lỗi Lifecycle: Kiểm tra trạng thái Hết hạn (Expired) ngay sau khi map dữ liệu
+        const rawConns = processData('connection', d.connection, modalConfigs.connection);
+        const today = new Date().toISOString().split('T')[0];
+        const processedConns = rawConns.map(conn => {
+          if (conn.expDate && conn.expDate < today && String(conn.status || '').toLowerCase() !== 'expired') {
+            return { ...conn, status: 'Expired' };
+          }
+          return conn;
+        });
+        setConnections(processedConns);
         setHeaderMaps(newHeaderMaps);
       } else {
         setApiError(res?.message || 'Có lỗi không xác định xuất phát từ Google Apps Script.');
@@ -106,6 +116,7 @@ export default function App() {
     fetchInitialData();
   }, []);
 
+  // --- TIỆN ÍCH DỮ LIỆU ---
   const getRawItemForApi = (type, normalizedItem) => {
     const mapping = headerMaps[type];
     if (!mapping) return normalizedItem;
@@ -128,23 +139,29 @@ export default function App() {
     return items.filter(item => Object.values(item).some(val => val !== null && val !== undefined && String(val).toLowerCase().includes(lowerSearch)));
   };
 
-  // Định dạng lại URL cho kho ứng dụng, nếu thiếu http:// thì tự động chèn vào
-  const formattedApps = applySearch(tenantFilter(apps)).map(app => ({
-    ...app,
-    webLink: app.webLink && !/^https?:\/\//i.test(app.webLink.trim()) ? `http://${app.webLink.trim()}` : app.webLink
-  }));
+  // --- TỐI ƯU HIỆU NĂNG (useMemo) ---
+  // Tránh việc re-render/re-filter toàn bộ bảng dữ liệu mỗi khi người dùng gõ phím vào Form
+  const filteredServers = useMemo(() => applySearch(tenantFilter(servers)), [servers, searchTerm, selectedUnit]);
+  const filteredVips = useMemo(() => applySearch(tenantFilter(vips)), [vips, searchTerm, selectedUnit]);
+  const filteredDns = useMemo(() => applySearch(tenantFilter(dns)), [dns, searchTerm, selectedUnit]);
+  const filteredConnections = useMemo(() => applySearch(tenantFilter(connections)), [connections, searchTerm, selectedUnit]);
+  const filteredPermissions = useMemo(() => applySearch(tenantFilter(permissions)), [permissions, searchTerm, selectedUnit]);
+  const filteredParameters = useMemo(() => applySearch(parameters), [parameters, searchTerm]);
+  const filteredUserGroups = useMemo(() => applySearch(userGroups), [userGroups, searchTerm]);
+  const filteredSystemUsers = useMemo(() => applySearch(systemUsers), [systemUsers, searchTerm]);
+  
+  // Định dạng lại URL cho kho ứng dụng, tự động nối http:// nếu thiếu
+  const formattedApps = useMemo(() => {
+    return applySearch(tenantFilter(apps)).map(app => ({
+      ...app,
+      webLink: app.webLink && !/^https?:\/\//i.test(app.webLink.trim()) ? `http://${app.webLink.trim()}` : app.webLink
+    }));
+  }, [apps, searchTerm, selectedUnit]);
 
   const hasViewPermission = (tab) => currentUser?.permissions?.[tab]?.view;
   const hasAddPermission = (tab) => currentUser?.permissions?.[tab]?.add;
 
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    setConnections(prev => prev.map(conn => {
-      if (conn.expDate && conn.expDate < today && String(conn.status || '').toLowerCase() !== 'expired') return { ...conn, status: 'Expired' };
-      return conn;
-    }));
-  }, []);
-
+  // --- XỬ LÝ ĐĂNG NHẬP & BẢO MẬT ---
   const handleLogin = async (e) => {
     e.preventDefault();
     const hashedInputPassword = await hashSHA256(loginForm.password.trim());
@@ -177,15 +194,17 @@ export default function App() {
     } else setPasswordError('Có lỗi xảy ra khi lưu mật khẩu!');
   };
 
-  const handleDeleteSelected = async (type, ids) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${ids.length} dòng dữ liệu?`)) return;
-    const updateLocal = (list, setList) => setList(list.filter(i => !ids.includes(i.id)));
-    if (type === 'server') updateLocal(servers, setServers); else if (type === 'vip') updateLocal(vips, setVips); else if (type === 'dns') updateLocal(dns, setDns);
-    else if (type === 'connection') updateLocal(connections, setConnections); else if (type === 'permission') updateLocal(permissions, setPermissions);
-    else if (type === 'app') updateLocal(apps, setApps); else if (type === 'parameter') updateLocal(parameters, setParameters);
-    else if (type === 'userGroup') updateLocal(userGroups, setUserGroups); else if (type === 'systemUser') updateLocal(systemUsers, setSystemUsers);
-    setSelectedItems({ ...selectedItems, [type]: [] });
-    await callApi({ action: 'delete', type: type, ids: ids }, setIsSyncing);
+  // --- XỬ LÝ MODAL TRẠNG THÁI CHUẨN ---
+  const closeModal = () => {
+    setShowModal(false);
+    setFormData({});
+    setGridRows([{}]);
+    setModalType('');
+  };
+
+  const closeBulkEditModal = () => {
+    setShowBulkEditModal(false);
+    setBulkEditData({ type: '', field: '', value: '' });
   };
 
   const openAddModal = (type) => {
@@ -197,6 +216,18 @@ export default function App() {
 
   const openEditModal = (type, item) => {
     setModalType(type); setFormData(type === 'systemUser' ? { ...item, password: '' } : { ...item }); setInputMode('form'); setShowModal(true);
+  };
+
+  // --- XỬ LÝ DỮ LIỆU GRID & FORM ---
+  const handleDeleteSelected = async (type, ids) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${ids.length} dòng dữ liệu?`)) return;
+    const updateLocal = (list, setList) => setList(list.filter(i => !ids.includes(i.id)));
+    if (type === 'server') updateLocal(servers, setServers); else if (type === 'vip') updateLocal(vips, setVips); else if (type === 'dns') updateLocal(dns, setDns);
+    else if (type === 'connection') updateLocal(connections, setConnections); else if (type === 'permission') updateLocal(permissions, setPermissions);
+    else if (type === 'app') updateLocal(apps, setApps); else if (type === 'parameter') updateLocal(parameters, setParameters);
+    else if (type === 'userGroup') updateLocal(userGroups, setUserGroups); else if (type === 'systemUser') updateLocal(systemUsers, setSystemUsers);
+    setSelectedItems({ ...selectedItems, [type]: [] });
+    await callApi({ action: 'delete', type: type, ids: ids }, setIsSyncing);
   };
 
   const executeBulkEdit = async (e) => {
@@ -217,11 +248,10 @@ export default function App() {
     else if (bulkEditData.type === 'dns') updateLocal(dns, setDns); else if (bulkEditData.type === 'connection') updateLocal(connections, setConnections);
     else if (bulkEditData.type === 'permission') updateLocal(permissions, setPermissions); else if (bulkEditData.type === 'app') updateLocal(apps, setApps);
     else if (bulkEditData.type === 'parameter') updateLocal(parameters, setParameters);
-    setShowBulkEditModal(false); setSelectedItems({ ...selectedItems, [bulkEditData.type]: [] });
+    closeBulkEditModal(); setSelectedItems({ ...selectedItems, [bulkEditData.type]: [] });
     await callApi({ action: 'bulkEdit', type: bulkEditData.type, ids: ids, field: getRawFieldForBulk(bulkEditData.type, bulkEditData.field), value: bulkEditData.value }, setIsSyncing);
   };
 
-  // --- BỔ SUNG CÁC HÀM XỬ LÝ LƯỚI & FORM BỊ THIẾU ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     let newFormData = { ...formData, [name]: value };
@@ -270,7 +300,6 @@ export default function App() {
 
   const addGridRow = () => setGridRows([...gridRows, {}]);
   const removeGridRow = (index) => setGridRows(gridRows.filter((_, i) => i !== index));
-  // -------------------------------------------------
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -287,7 +316,7 @@ export default function App() {
       else if (modalType === 'connection') updateLocal(connections, setConnections); else if (modalType === 'permission') updateLocal(permissions, setPermissions);
       else if (modalType === 'app') updateLocal(apps, setApps); else if (modalType === 'parameter') updateLocal(parameters, setParameters);
       else if (modalType === 'userGroup') updateLocal(userGroups, setUserGroups); else if (modalType === 'systemUser') updateLocal(systemUsers, setSystemUsers);
-      setShowModal(false); setFormData({});
+      closeModal();
       await callApi({ action: 'update', type: modalType, id: submitFormData.id, data: getRawItemForApi(modalType, payloadData) }, setIsSyncing);
     } else {
       const today = new Date().toISOString().split('T')[0];
@@ -304,7 +333,7 @@ export default function App() {
       else if (modalType === 'connection') setConnections([...connections, ...newItems]); else if (modalType === 'permission') setPermissions([...permissions, ...newItems]);
       else if (modalType === 'app') setApps([...apps, ...newItems]); else if (modalType === 'parameter') setParameters([...parameters, ...newItems]);
       else if (modalType === 'userGroup') setUserGroups([...userGroups, ...newItems]); else if (modalType === 'systemUser') setSystemUsers([...systemUsers, ...newItems]);
-      setShowModal(false); setFormData({}); setGridRows([{}]);
+      closeModal();
       await callApi({ action: 'create', type: modalType, data: newItems.map(i => getRawItemForApi(modalType, i)) }, setIsSyncing);
     }
   };
@@ -330,9 +359,11 @@ export default function App() {
     return <input type="text" name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" placeholder={isBulk ? "Nhập giá trị mới..." : ""} required={isBulk} />;
   };
 
+  // --- MÀN HÌNH TẢI DỮ LIỆU ---
   if (isLoading) return <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" /><p className="font-medium">Đang tải...</p></div>;
   if (apiError) return <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50"><div className="bg-white p-8 rounded-2xl shadow-xl max-w-2xl text-center border-t-4 border-red-500"><AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" /><h1 className="text-2xl font-bold mb-2">Lỗi Kết nối Backend</h1><div className="bg-red-50 text-red-800 p-4 rounded-lg font-mono text-sm text-left mb-6">{apiError}</div><button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-600 text-white rounded-lg">Thử lại</button></div></div>;
 
+  // --- MÀN HÌNH KHÁCH (CHƯA ĐĂNG NHẬP) ---
   if (!currentUser) {
     return (
       <div className="min-h-screen flex flex-col font-sans text-gray-800" style={{ backgroundColor: BG_BODY }}>
@@ -352,6 +383,7 @@ export default function App() {
     );
   }
 
+  // --- MÀN HÌNH CHÍNH (ĐÃ ĐĂNG NHẬP) ---
   return (
     <div className="min-h-screen flex font-sans text-gray-800" style={{ backgroundColor: BG_BODY }}>
       {isSyncing && <div className="fixed inset-0 bg-white/50 backdrop-blur-sm z-[100] flex items-center justify-center"><Loader2 className="w-8 h-8 text-emerald-600 animate-spin"/></div>}
@@ -370,26 +402,26 @@ export default function App() {
         </header>
 
         <div className="p-8 flex-1 overflow-y-auto custom-scrollbar relative">
-          {activeTab === 'dashboard' && hasViewPermission('dashboard') && <Dashboard selectedUnit={selectedUnit} filteredServers={applySearch(tenantFilter(servers))} filteredConnections={applySearch(tenantFilter(connections))} filteredPermissions={applySearch(tenantFilter(permissions))} />}
-          {activeTab === 'servers' && hasViewPermission('servers') && <GenericTable title="Quản lý Máy chủ (Server)" type="server" moduleId="servers" data={applySearch(tenantFilter(servers))} config={modalConfigs.server} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('servers')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
-          {activeTab === 'vips' && hasViewPermission('vips') && <GenericTable title="Quản lý Virtual IPs (VIPs)" type="vip" moduleId="vips" data={applySearch(tenantFilter(vips))} config={modalConfigs.vip} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('vips')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
-          {activeTab === 'dns' && hasViewPermission('dns') && <GenericTable title="Quản lý DNS Records" type="dns" moduleId="dns" data={applySearch(tenantFilter(dns))} config={modalConfigs.dns} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('dns')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
-          {activeTab === 'connections' && hasViewPermission('connections') && <GenericTable title="Quản lý Kết nối" type="connection" moduleId="connections" data={applySearch(tenantFilter(connections))} config={modalConfigs.connection} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('connections')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
-          {activeTab === 'permissions' && hasViewPermission('permissions') && <GenericTable title="Quản lý Quyền & Tài khoản" type="permission" moduleId="permissions" data={applySearch(tenantFilter(permissions))} config={modalConfigs.permission} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('permissions')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
+          {activeTab === 'dashboard' && hasViewPermission('dashboard') && <Dashboard selectedUnit={selectedUnit} filteredServers={filteredServers} filteredConnections={filteredConnections} filteredPermissions={filteredPermissions} />}
+          {activeTab === 'servers' && hasViewPermission('servers') && <GenericTable title="Quản lý Máy chủ (Server)" type="server" moduleId="servers" data={filteredServers} config={modalConfigs.server} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('servers')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
+          {activeTab === 'vips' && hasViewPermission('vips') && <GenericTable title="Quản lý Virtual IPs (VIPs)" type="vip" moduleId="vips" data={filteredVips} config={modalConfigs.vip} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('vips')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
+          {activeTab === 'dns' && hasViewPermission('dns') && <GenericTable title="Quản lý DNS Records" type="dns" moduleId="dns" data={filteredDns} config={modalConfigs.dns} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('dns')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
+          {activeTab === 'connections' && hasViewPermission('connections') && <GenericTable title="Quản lý Kết nối" type="connection" moduleId="connections" data={filteredConnections} config={modalConfigs.connection} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('connections')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
+          {activeTab === 'permissions' && hasViewPermission('permissions') && <GenericTable title="Quản lý Quyền & Tài khoản" type="permission" moduleId="permissions" data={filteredPermissions} config={modalConfigs.permission} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('permissions')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
           {activeTab === 'appStore' && hasViewPermission('appStore') && <AppStore isPublic={false} filteredApps={formattedApps} hasAddPermission={hasAddPermission('appStore')} openAddModal={() => openAddModal('app')} openEditModal={(app) => openEditModal('app', app)} />}
-          {activeTab === 'parameters' && hasViewPermission('parameters') && <GenericTable title="Danh mục Tham số Hệ thống" type="parameter" moduleId="parameters" data={applySearch(parameters)} config={modalConfigs.parameter} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('parameters')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
-          {activeTab === 'userGroups' && hasViewPermission('userGroups') && <UserGroupsTable data={applySearch(userGroups)} selectedItems={selectedItems} setSelectedItems={setSelectedItems} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
-          {activeTab === 'systemUsers' && hasViewPermission('systemUsers') && <SystemUsersTable data={applySearch(systemUsers)} userGroups={userGroups} selectedItems={selectedItems} setSelectedItems={setSelectedItems} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
+          {activeTab === 'parameters' && hasViewPermission('parameters') && <GenericTable title="Danh mục Tham số Hệ thống" type="parameter" moduleId="parameters" data={filteredParameters} config={modalConfigs.parameter} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('parameters')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
+          {activeTab === 'userGroups' && hasViewPermission('userGroups') && <UserGroupsTable data={filteredUserGroups} selectedItems={selectedItems} setSelectedItems={setSelectedItems} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
+          {activeTab === 'systemUsers' && hasViewPermission('systemUsers') && <SystemUsersTable data={filteredSystemUsers} userGroups={userGroups} selectedItems={selectedItems} setSelectedItems={setSelectedItems} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
         </div>
       </main>
 
       {/* --- CÁC MODAL --- */}
       {showBulkEditModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"><form onSubmit={executeBulkEdit} className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 relative"><button type="button" onClick={() => setShowBulkEditModal(false)} className="absolute top-4 right-4"><X className="w-4 h-4"/></button><h3 className="text-lg font-bold mb-4">Sửa hàng loạt</h3><div className="space-y-4"><div><label className="block text-sm font-medium mb-1">Chọn trường</label><select required value={bulkEditData.field} onChange={e => setBulkEditData({...bulkEditData, field: e.target.value})} className="w-full border rounded p-2 focus:ring-2 outline-none">{modalConfigs[bulkEditData.type]?.map((c, i) => <option key={i} value={c.key}>{c.label}</option>)}</select></div><div><label className="block text-sm font-medium mb-1">Giá trị mới</label>{renderFieldInput(modalConfigs[bulkEditData.type]?.find(c => c.key === bulkEditData.field) || { key: bulkEditData.field }, bulkEditData.value, true)}</div></div><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setShowBulkEditModal(false)} className="px-4 py-2 border rounded-lg">Hủy</button><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="px-4 py-2 text-white rounded-lg">Áp dụng</button></div></form></div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"><form onSubmit={executeBulkEdit} className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 relative"><button type="button" onClick={closeBulkEditModal} className="absolute top-4 right-4"><X className="w-4 h-4"/></button><h3 className="text-lg font-bold mb-4">Sửa hàng loạt</h3><div className="space-y-4"><div><label className="block text-sm font-medium mb-1">Chọn trường</label><select required value={bulkEditData.field} onChange={e => setBulkEditData({...bulkEditData, field: e.target.value})} className="w-full border rounded p-2 focus:ring-2 outline-none">{modalConfigs[bulkEditData.type]?.map((c, i) => <option key={i} value={c.key}>{c.label}</option>)}</select></div><div><label className="block text-sm font-medium mb-1">Giá trị mới</label>{renderFieldInput(modalConfigs[bulkEditData.type]?.find(c => c.key === bulkEditData.field) || { key: bulkEditData.field }, bulkEditData.value, true)}</div></div><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={closeBulkEditModal} className="px-4 py-2 border rounded-lg">Hủy</button><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="px-4 py-2 text-white rounded-lg">Áp dụng</button></div></form></div>
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"><div className={`bg-white rounded-xl shadow-2xl w-full ${inputMode === 'grid' && modalType !== 'systemUser' && modalType !== 'userGroup' ? 'max-w-[95vw]' : 'max-w-2xl'} max-h-[95vh] flex flex-col`}><div className="flex justify-between items-center p-6 border-b bg-slate-50/50"><h3 className="text-xl font-bold">{modalType === 'systemUser' ? (formData.id ? 'Sửa Tài khoản' : 'Tạo Tài khoản') : modalType === 'userGroup' ? (formData.id ? 'Sửa Nhóm Quyền' : 'Tạo Nhóm Quyền') : (formData.id ? `Cập nhật dữ liệu` : `Thêm mới dữ liệu`)}</h3><button onClick={() => setShowModal(false)}><X className="w-5 h-5"/></button></div><form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col">{!formData.id && modalType !== 'systemUser' && modalType !== 'userGroup' && (<div className="flex justify-center border-b p-4"><div className="flex bg-gray-100 p-1.5 rounded-lg"><button type="button" onClick={() => setInputMode('form')} className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-medium ${inputMode === 'form' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}><ListIcon className="w-4 h-4" /> Form</button><button type="button" onClick={() => setInputMode('grid')} className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-medium ${inputMode === 'grid' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}><TableIcon className="w-4 h-4" /> Dán từ Excel</button></div></div>)}<div className="flex-1 overflow-y-auto p-6">{inputMode === 'form' ? (modalType === 'userGroup' ? (<div className="space-y-6"><div><label className="block text-sm font-medium mb-1">Tên Nhóm *</label><input required name="groupName" value={formData.groupName || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" /></div><div className="border rounded-lg overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-gray-50 border-b"><tr><th className="px-4 py-2">Phân hệ</th><th className="px-4 py-2 text-center">Xem</th><th className="px-4 py-2 text-center">Thêm/Sửa</th></tr></thead><tbody className="divide-y">{SYSTEM_MODULES.map((mod, i) => (<tr key={i}><td className="px-4 py-2">{mod.label}</td><td className="px-4 py-2 text-center"><input type="checkbox" checked={formData.permissions?.[mod.id]?.view || false} onChange={(e) => handleGroupPermChange(mod.id, 'view', e.target.checked)} /></td><td className="px-4 py-2 text-center"><input type="checkbox" checked={formData.permissions?.[mod.id]?.add || false} onChange={(e) => handleGroupPermChange(mod.id, 'add', e.target.checked)} /></td></tr>))}</tbody></table></div></div>) : modalType === 'systemUser' ? (<div className="grid grid-cols-2 gap-4"><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Tên đăng nhập *</label><input required name="username" value={formData.username || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" autoComplete="username" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Mật khẩu {formData.id ? '' : '*'}</label><input required={!formData.id} name="password" value={formData.password || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="password" placeholder={formData.id ? "(Nhập để đổi mật khẩu)" : "Nhập mật khẩu..."} autoComplete={formData.id ? "new-password" : "current-password"} /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Họ và Tên</label><input required name="fullName" value={formData.fullName || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Gán Nhóm Quyền *</label><select required name="groupId" value={formData.groupId || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none"><option value="">-- Chọn Nhóm --</option>{userGroups.map(g => <option key={g.id} value={g.id}>{g.groupName}</option>)}</select></div></div>) : (<div className="grid grid-cols-2 gap-4">{(modalConfigs[modalType] || []).map((col, i) => <div key={i} className={['desc', 'note', 'purpose', 'value'].includes(col.key) ? 'col-span-2' : 'col-span-2 sm:col-span-1'}><label className="block text-sm font-medium mb-1">{col.label}</label>{renderFieldInput(col, formData[col.key] || '', false)}</div>)}</div>)) : (<div className="overflow-x-auto border rounded-lg bg-gray-50/50 p-4"><table className="w-full text-sm text-left"><thead className="bg-gray-100"><tr><th className="px-2 py-2 text-center border-b w-10">#</th>{(modalConfigs[modalType] || []).map((c, i) => <th key={i} className="px-2 py-2 border-b">{c.label}</th>)}<th className="px-2 py-2 border-b w-10"></th></tr></thead><tbody>{gridRows.map((row, rIdx) => (<tr key={rIdx}><td className="px-2 py-1 text-center text-gray-400">{rIdx + 1}</td>{(modalConfigs[modalType] || []).map((c, cIdx) => <td key={cIdx} className="px-1 py-1 min-w-[120px]"><input type="text" className="w-full border border-gray-300 rounded px-2 py-1.5 outline-none" value={row[c.key] || ''} onChange={(e) => handleGridChange(rIdx, c.key, e.target.value)} onPaste={(e) => handleGridPaste(e, rIdx, cIdx, modalConfigs[modalType])} /></td>)}<td className="px-2 py-1 text-center"><button type="button" onClick={() => removeGridRow(rIdx)} className="text-red-400"><Trash2 className="w-4 h-4"/></button></td></tr>))}</tbody></table><button type="button" onClick={addGridRow} className="mt-4 flex items-center gap-1 text-sm font-medium text-emerald-600"><Plus className="w-4 h-4" /> Thêm dòng trống</button></div>)}</div><div className="flex justify-end gap-3 p-4 border-t bg-slate-50"><button type="button" onClick={() => setShowModal(false)} className="px-6 py-2 border rounded-lg">Hủy</button><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="px-6 py-2 text-white rounded-lg">Lưu dữ liệu</button></div></form></div></div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"><div className={`bg-white rounded-xl shadow-2xl w-full ${inputMode === 'grid' && modalType !== 'systemUser' && modalType !== 'userGroup' ? 'max-w-[95vw]' : 'max-w-2xl'} max-h-[95vh] flex flex-col`}><div className="flex justify-between items-center p-6 border-b bg-slate-50/50"><h3 className="text-xl font-bold">{modalType === 'systemUser' ? (formData.id ? 'Sửa Tài khoản' : 'Tạo Tài khoản') : modalType === 'userGroup' ? (formData.id ? 'Sửa Nhóm Quyền' : 'Tạo Nhóm Quyền') : (formData.id ? `Cập nhật dữ liệu` : `Thêm mới dữ liệu`)}</h3><button type="button" onClick={closeModal}><X className="w-5 h-5"/></button></div><form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col">{!formData.id && modalType !== 'systemUser' && modalType !== 'userGroup' && (<div className="flex justify-center border-b p-4"><div className="flex bg-gray-100 p-1.5 rounded-lg"><button type="button" onClick={() => setInputMode('form')} className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-medium ${inputMode === 'form' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}><ListIcon className="w-4 h-4" /> Form</button><button type="button" onClick={() => setInputMode('grid')} className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-medium ${inputMode === 'grid' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}><TableIcon className="w-4 h-4" /> Dán từ Excel</button></div></div>)}<div className="flex-1 overflow-y-auto p-6">{inputMode === 'form' ? (modalType === 'userGroup' ? (<div className="space-y-6"><div><label className="block text-sm font-medium mb-1">Tên Nhóm *</label><input required name="groupName" value={formData.groupName || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" /></div><div className="border rounded-lg overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-gray-50 border-b"><tr><th className="px-4 py-2">Phân hệ</th><th className="px-4 py-2 text-center">Xem</th><th className="px-4 py-2 text-center">Thêm/Sửa</th></tr></thead><tbody className="divide-y">{SYSTEM_MODULES.map((mod, i) => (<tr key={i}><td className="px-4 py-2">{mod.label}</td><td className="px-4 py-2 text-center"><input type="checkbox" checked={formData.permissions?.[mod.id]?.view || false} onChange={(e) => handleGroupPermChange(mod.id, 'view', e.target.checked)} /></td><td className="px-4 py-2 text-center"><input type="checkbox" checked={formData.permissions?.[mod.id]?.add || false} onChange={(e) => handleGroupPermChange(mod.id, 'add', e.target.checked)} /></td></tr>))}</tbody></table></div></div>) : modalType === 'systemUser' ? (<div className="grid grid-cols-2 gap-4"><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Tên đăng nhập *</label><input required name="username" value={formData.username || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" autoComplete="username" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Mật khẩu {formData.id ? '' : '*'}</label><input required={!formData.id} name="password" value={formData.password || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="password" placeholder={formData.id ? "(Nhập để đổi mật khẩu)" : "Nhập mật khẩu..."} autoComplete={formData.id ? "new-password" : "current-password"} /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Họ và Tên</label><input required name="fullName" value={formData.fullName || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Gán Nhóm Quyền *</label><select required name="groupId" value={formData.groupId || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none"><option value="">-- Chọn Nhóm --</option>{userGroups.map(g => <option key={g.id} value={g.id}>{g.groupName}</option>)}</select></div></div>) : (<div className="grid grid-cols-2 gap-4">{(modalConfigs[modalType] || []).map((col, i) => <div key={i} className={['desc', 'note', 'purpose', 'value'].includes(col.key) ? 'col-span-2' : 'col-span-2 sm:col-span-1'}><label className="block text-sm font-medium mb-1">{col.label}</label>{renderFieldInput(col, formData[col.key] || '', false)}</div>)}</div>)) : (<div className="overflow-x-auto border rounded-lg bg-gray-50/50 p-4"><table className="w-full text-sm text-left"><thead className="bg-gray-100"><tr><th className="px-2 py-2 text-center border-b w-10">#</th>{(modalConfigs[modalType] || []).map((c, i) => <th key={i} className="px-2 py-2 border-b">{c.label}</th>)}<th className="px-2 py-2 border-b w-10"></th></tr></thead><tbody>{gridRows.map((row, rIdx) => (<tr key={rIdx}><td className="px-2 py-1 text-center text-gray-400">{rIdx + 1}</td>{(modalConfigs[modalType] || []).map((c, cIdx) => <td key={cIdx} className="px-1 py-1 min-w-[120px]"><input type="text" className="w-full border border-gray-300 rounded px-2 py-1.5 outline-none" value={row[c.key] || ''} onChange={(e) => handleGridChange(rIdx, c.key, e.target.value)} onPaste={(e) => handleGridPaste(e, rIdx, cIdx, modalConfigs[modalType])} /></td>)}<td className="px-2 py-1 text-center"><button type="button" onClick={() => removeGridRow(rIdx)} className="text-red-400"><Trash2 className="w-4 h-4"/></button></td></tr>))}</tbody></table><button type="button" onClick={addGridRow} className="mt-4 flex items-center gap-1 text-sm font-medium text-emerald-600"><Plus className="w-4 h-4" /> Thêm dòng trống</button></div>)}</div><div className="flex justify-end gap-3 p-4 border-t bg-slate-50"><button type="button" onClick={closeModal} className="px-6 py-2 border rounded-lg">Hủy</button><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="px-6 py-2 text-white rounded-lg">Lưu dữ liệu</button></div></form></div></div>
       )}
 
       {showChangePasswordModal && (
