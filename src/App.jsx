@@ -282,24 +282,24 @@ export default function App() {
   if (isLoading) return <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" /><p className="font-medium">Đang tải...</p></div>;
   if (apiError) return <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50"><div className="bg-white p-8 rounded-2xl shadow-xl max-w-2xl text-center border-t-4 border-red-500"><AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" /><h1 className="text-2xl font-bold mb-2">Lỗi Kết nối Backend</h1><div className="bg-red-50 text-red-800 p-4 rounded-lg font-mono text-sm text-left mb-6">{apiError}</div><button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-600 text-white rounded-lg">Thử lại</button></div></div>;
 
-  const GuestView = () => (
-    <div className="min-h-screen flex flex-col font-sans text-gray-800" style={{ backgroundColor: BG_BODY }}>
-      {isSyncing && <div className="fixed inset-0 bg-white/50 backdrop-blur-sm z-[100] flex items-center justify-center"><Loader2 className="w-8 h-8 text-emerald-600 animate-spin"/></div>}
-      <header style={{ backgroundColor: HEADER_COLOR }} className="p-4 flex justify-between items-center z-10 shadow-md shrink-0 text-white">
-        <div className="flex items-center gap-2 font-bold text-xl"><AppWindow className="w-6 h-6" /> InfraStore</div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 w-64 md:w-80 focus-within:bg-white/20"><Search className="w-4 h-4 text-white/70 mr-2" /><input type="text" placeholder="Tìm ứng dụng..." className="bg-transparent border-none outline-none text-sm w-full text-white placeholder-white/70" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-          <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg font-medium text-sm"><LogIn className="w-4 h-4" /> Đăng nhập</button>
-        </div>
-      </header>
-      <main className="flex-1 p-8 overflow-y-auto"><AppStore isPublic={true} filteredApps={formattedApps} hasAddPermission={false} /></main>
-      {showLoginModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative"><button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-gray-400 hover:bg-gray-100 rounded-full p-1.5"><X className="w-5 h-5"/></button><div className="text-center mb-6"><div style={{ backgroundColor: HEADER_COLOR }} className="w-16 h-16 rounded-full flex items-center justify-center text-white mx-auto mb-4 shadow-lg"><KeyRound className="w-8 h-8"/></div><h2 className="text-2xl font-bold">Đăng nhập</h2></div><form onSubmit={handleLogin} className="space-y-4">{loginError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{loginError}</div>}<div><label className="block text-sm font-medium mb-1">Tài khoản</label><input required value={loginForm.username} onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} className="w-full border rounded-lg p-3 focus:ring-2 outline-none" type="text" /></div><div><label className="block text-sm font-medium mb-1">Mật khẩu</label><input required value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} className="w-full border rounded-lg p-3 focus:ring-2 outline-none" type="password" /></div><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="w-full text-white rounded-lg p-3 font-bold">Đăng nhập</button></form></div></div>
-      )}
-    </div>
-  );
-
-  if (!currentUser) return <GuestView />;
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex flex-col font-sans text-gray-800" style={{ backgroundColor: BG_BODY }}>
+        {isSyncing && <div className="fixed inset-0 bg-white/50 backdrop-blur-sm z-[100] flex items-center justify-center"><Loader2 className="w-8 h-8 text-emerald-600 animate-spin"/></div>}
+        <header style={{ backgroundColor: HEADER_COLOR }} className="p-4 flex justify-between items-center z-10 shadow-md shrink-0 text-white">
+          <div className="flex items-center gap-2 font-bold text-xl"><AppWindow className="w-6 h-6" /> InfraStore</div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 w-64 md:w-80 focus-within:bg-white/20"><Search className="w-4 h-4 text-white/70 mr-2" /><input type="text" placeholder="Tìm ứng dụng..." className="bg-transparent border-none outline-none text-sm w-full text-white placeholder-white/70" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
+            <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg font-medium text-sm"><LogIn className="w-4 h-4" /> Đăng nhập</button>
+          </div>
+        </header>
+        <main className="flex-1 p-8 overflow-y-auto"><AppStore isPublic={true} filteredApps={formattedApps} hasAddPermission={false} /></main>
+        {showLoginModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative"><button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-gray-400 hover:bg-gray-100 rounded-full p-1.5"><X className="w-5 h-5"/></button><div className="text-center mb-6"><div style={{ backgroundColor: HEADER_COLOR }} className="w-16 h-16 rounded-full flex items-center justify-center text-white mx-auto mb-4 shadow-lg"><KeyRound className="w-8 h-8"/></div><h2 className="text-2xl font-bold">Đăng nhập</h2></div><form onSubmit={handleLogin} className="space-y-4">{loginError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{loginError}</div>}<div><label className="block text-sm font-medium mb-1">Tài khoản</label><input required value={loginForm.username} onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} className="w-full border rounded-lg p-3 focus:ring-2 outline-none" type="text" /></div><div><label className="block text-sm font-medium mb-1">Mật khẩu</label><input required value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} className="w-full border rounded-lg p-3 focus:ring-2 outline-none" type="password" /></div><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="w-full text-white rounded-lg p-3 font-bold">Đăng nhập</button></form></div></div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex font-sans text-gray-800" style={{ backgroundColor: BG_BODY }}>
