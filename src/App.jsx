@@ -97,16 +97,16 @@ export default function App() {
         setUserGroups(processData('userGroup', d.userGroup, [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền thao tác'}]));
         setSystemUsers(processData('systemUser', d.systemUser, [{key: 'username', label: 'Tài khoản'}, {key: 'password', label: 'Mật khẩu'}, {key: 'fullName', label: 'Họ Tên'}, {key: 'groupId', label: 'Nhóm Quyền'}]));
         
-        // Sửa lỗi Lifecycle: Kiểm tra trạng thái Hết hạn (Expired) ngay sau khi map dữ liệu
+        // Map dữ liệu Connection & Kích hoạt trạng thái Expired một lần duy nhất
         const rawConns = processData('connection', d.connection, modalConfigs.connection);
         const today = new Date().toISOString().split('T')[0];
-        const processedConns = rawConns.map(conn => {
+        setConnections(rawConns.map(conn => {
           if (conn.expDate && conn.expDate < today && String(conn.status || '').toLowerCase() !== 'expired') {
             return { ...conn, status: 'Expired' };
           }
           return conn;
-        });
-        setConnections(processedConns);
+        }));
+        
         setHeaderMaps(newHeaderMaps);
       } else {
         setApiError(res?.message || 'Có lỗi không xác định xuất phát từ Google Apps Script.');
@@ -116,7 +116,65 @@ export default function App() {
     fetchInitialData();
   }, []);
 
-  // --- TIỆN ÍCH DỮ LIỆU ---
+  // ============================================================================
+  // TỐI ƯU HÓA HIỆU NĂNG (SENIOR LEVEL PERFORMANCE OPTIMIZATION)
+  // ============================================================================
+
+  // 1. Chuyển đổi dữ liệu Tham số thành Map (Dictionary O(1)) để tránh vòng lặp N^2
+  const paramOptionsMap = useMemo(() => {
+    const map = {};
+    parameters.forEach(p => {
+      if (!map[p.type]) map[p.type] = [];
+      const vals = String(p.value || '').split(',').map(v => v.trim()).filter(Boolean);
+      map[p.type].push(...vals);
+    });
+    // Xóa trùng lặp
+    Object.keys(map).forEach(k => map[k] = Array.from(new Set(map[k])));
+    return map;
+  }, [parameters]);
+
+  // 2. Cache danh sách tất cả các Đơn vị
+  const allUnits = useMemo(() => {
+    const existing = [...servers, ...vips, ...dns, ...connections, ...permissions, ...apps].map(item => item.unit);
+    return Array.from(new Set([...(paramOptionsMap['Đơn vị'] || []), ...existing])).filter(Boolean);
+  }, [servers, vips, dns, connections, permissions, apps, paramOptionsMap]);
+
+  // 3. Cache logic tìm kiếm chung để tránh cấp phát lại hàm mỗi lần render
+  const getFilteredData = (dataArray) => {
+    let res = dataArray;
+    if (selectedUnit !== 'All') res = res.filter(item => item.unit === selectedUnit);
+    if (searchTerm.trim()) {
+      const lowerSearch = searchTerm.toLowerCase();
+      res = res.filter(item => Object.values(item).some(val => val !== null && val !== undefined && String(val).toLowerCase().includes(lowerSearch)));
+    }
+    return res;
+  };
+
+  const getSearchOnlyData = (dataArray) => {
+    if (!searchTerm.trim()) return dataArray;
+    const lowerSearch = searchTerm.toLowerCase();
+    return dataArray.filter(item => Object.values(item).some(val => val !== null && val !== undefined && String(val).toLowerCase().includes(lowerSearch)));
+  };
+
+  // 4. Memoize toàn bộ mảng dữ liệu đã lọc, chỉ chạy lại khi thật sự cần thiết
+  const filteredServers = useMemo(() => getFilteredData(servers), [servers, selectedUnit, searchTerm]);
+  const filteredVips = useMemo(() => getFilteredData(vips), [vips, selectedUnit, searchTerm]);
+  const filteredDns = useMemo(() => getFilteredData(dns), [dns, selectedUnit, searchTerm]);
+  const filteredConnections = useMemo(() => getFilteredData(connections), [connections, selectedUnit, searchTerm]);
+  const filteredPermissions = useMemo(() => getFilteredData(permissions), [permissions, selectedUnit, searchTerm]);
+  const filteredParameters = useMemo(() => getSearchOnlyData(parameters), [parameters, searchTerm]);
+  const filteredUserGroups = useMemo(() => getSearchOnlyData(userGroups), [userGroups, searchTerm]);
+  const filteredSystemUsers = useMemo(() => getSearchOnlyData(systemUsers), [systemUsers, searchTerm]);
+  
+  const formattedApps = useMemo(() => {
+    return getFilteredData(apps).map(app => ({
+      ...app,
+      webLink: app.webLink && !/^https?:\/\//i.test(app.webLink.trim()) ? `http://${app.webLink.trim()}` : app.webLink
+    }));
+  }, [apps, searchTerm, selectedUnit]);
+
+  // ============================================================================
+
   const getRawItemForApi = (type, normalizedItem) => {
     const mapping = headerMaps[type];
     if (!mapping) return normalizedItem;
@@ -128,40 +186,9 @@ export default function App() {
 
   const getRawFieldForBulk = (type, field) => headerMaps[type] && headerMaps[type][field] ? headerMaps[type][field] : field;
 
-  const getParamOptions = (typeStr) => Array.from(new Set(parameters.filter(p => p.type === typeStr).flatMap(p => String(p.value || '').split(',').map(v => v.trim()).filter(Boolean))));
-  
-  const allUnits = Array.from(new Set([...getParamOptions('Đơn vị'), ...servers.map(s => s.unit), ...vips.map(v => v.unit), ...dns.map(d => d.unit), ...connections.map(c => c.unit), ...permissions.map(p => p.unit), ...apps.map(a => a.unit)])).filter(Boolean);
-
-  const tenantFilter = (items) => selectedUnit === 'All' ? items : items.filter(item => item?.unit === selectedUnit);
-  const applySearch = (items) => {
-    if (!searchTerm.trim()) return items;
-    const lowerSearch = searchTerm.toLowerCase();
-    return items.filter(item => Object.values(item).some(val => val !== null && val !== undefined && String(val).toLowerCase().includes(lowerSearch)));
-  };
-
-  // --- TỐI ƯU HIỆU NĂNG (useMemo) ---
-  // Tránh việc re-render/re-filter toàn bộ bảng dữ liệu mỗi khi người dùng gõ phím vào Form
-  const filteredServers = useMemo(() => applySearch(tenantFilter(servers)), [servers, searchTerm, selectedUnit]);
-  const filteredVips = useMemo(() => applySearch(tenantFilter(vips)), [vips, searchTerm, selectedUnit]);
-  const filteredDns = useMemo(() => applySearch(tenantFilter(dns)), [dns, searchTerm, selectedUnit]);
-  const filteredConnections = useMemo(() => applySearch(tenantFilter(connections)), [connections, searchTerm, selectedUnit]);
-  const filteredPermissions = useMemo(() => applySearch(tenantFilter(permissions)), [permissions, searchTerm, selectedUnit]);
-  const filteredParameters = useMemo(() => applySearch(parameters), [parameters, searchTerm]);
-  const filteredUserGroups = useMemo(() => applySearch(userGroups), [userGroups, searchTerm]);
-  const filteredSystemUsers = useMemo(() => applySearch(systemUsers), [systemUsers, searchTerm]);
-  
-  // Định dạng lại URL cho kho ứng dụng, tự động nối http:// nếu thiếu
-  const formattedApps = useMemo(() => {
-    return applySearch(tenantFilter(apps)).map(app => ({
-      ...app,
-      webLink: app.webLink && !/^https?:\/\//i.test(app.webLink.trim()) ? `http://${app.webLink.trim()}` : app.webLink
-    }));
-  }, [apps, searchTerm, selectedUnit]);
-
   const hasViewPermission = (tab) => currentUser?.permissions?.[tab]?.view;
   const hasAddPermission = (tab) => currentUser?.permissions?.[tab]?.add;
 
-  // --- XỬ LÝ ĐĂNG NHẬP & BẢO MẬT ---
   const handleLogin = async (e) => {
     e.preventDefault();
     const hashedInputPassword = await hashSHA256(loginForm.password.trim());
@@ -194,7 +221,6 @@ export default function App() {
     } else setPasswordError('Có lỗi xảy ra khi lưu mật khẩu!');
   };
 
-  // --- XỬ LÝ MODAL TRẠNG THÁI CHUẨN ---
   const closeModal = () => {
     setShowModal(false);
     setFormData({});
@@ -218,7 +244,6 @@ export default function App() {
     setModalType(type); setFormData(type === 'systemUser' ? { ...item, password: '' } : { ...item }); setInputMode('form'); setShowModal(true);
   };
 
-  // --- XỬ LÝ DỮ LIỆU GRID & FORM ---
   const handleDeleteSelected = async (type, ids) => {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa ${ids.length} dòng dữ liệu?`)) return;
     const updateLocal = (list, setList) => setList(list.filter(i => !ids.includes(i.id)));
@@ -236,6 +261,7 @@ export default function App() {
     if(ids.length === 0) return;
     const today = new Date().toISOString().split('T')[0];
     const s = String(bulkEditData.value || '').toLowerCase();
+    
     const updateLocal = (list, setList) => setList(list.map(item => {
         if (ids.includes(item.id)) {
            let upd = { ...item, [bulkEditData.field]: bulkEditData.value };
@@ -248,7 +274,9 @@ export default function App() {
     else if (bulkEditData.type === 'dns') updateLocal(dns, setDns); else if (bulkEditData.type === 'connection') updateLocal(connections, setConnections);
     else if (bulkEditData.type === 'permission') updateLocal(permissions, setPermissions); else if (bulkEditData.type === 'app') updateLocal(apps, setApps);
     else if (bulkEditData.type === 'parameter') updateLocal(parameters, setParameters);
-    closeBulkEditModal(); setSelectedItems({ ...selectedItems, [bulkEditData.type]: [] });
+    
+    closeBulkEditModal(); 
+    setSelectedItems({ ...selectedItems, [bulkEditData.type]: [] });
     await callApi({ action: 'bulkEdit', type: bulkEditData.type, ids: ids, field: getRawFieldForBulk(bulkEditData.type, bulkEditData.field), value: bulkEditData.value }, setIsSyncing);
   };
 
@@ -304,6 +332,7 @@ export default function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     let submitFormData = { ...formData };
+    
     if (modalType === 'systemUser') {
       if (submitFormData.password) submitFormData.password = await hashSHA256(submitFormData.password);
       else if (submitFormData.id) submitFormData.password = (systemUsers.find(u => u.id === submitFormData.id) || {}).password;
@@ -316,6 +345,7 @@ export default function App() {
       else if (modalType === 'connection') updateLocal(connections, setConnections); else if (modalType === 'permission') updateLocal(permissions, setPermissions);
       else if (modalType === 'app') updateLocal(apps, setApps); else if (modalType === 'parameter') updateLocal(parameters, setParameters);
       else if (modalType === 'userGroup') updateLocal(userGroups, setUserGroups); else if (modalType === 'systemUser') updateLocal(systemUsers, setSystemUsers);
+      
       closeModal();
       await callApi({ action: 'update', type: modalType, id: submitFormData.id, data: getRawItemForApi(modalType, payloadData) }, setIsSyncing);
     } else {
@@ -329,10 +359,12 @@ export default function App() {
         return pr;
       }));
       if (newItems.length === 0) return;
+      
       if (modalType === 'server') setServers([...servers, ...newItems]); else if (modalType === 'vip') setVips([...vips, ...newItems]); else if (modalType === 'dns') setDns([...dns, ...newItems]);
       else if (modalType === 'connection') setConnections([...connections, ...newItems]); else if (modalType === 'permission') setPermissions([...permissions, ...newItems]);
       else if (modalType === 'app') setApps([...apps, ...newItems]); else if (modalType === 'parameter') setParameters([...parameters, ...newItems]);
       else if (modalType === 'userGroup') setUserGroups([...userGroups, ...newItems]); else if (modalType === 'systemUser') setSystemUsers([...systemUsers, ...newItems]);
+      
       closeModal();
       await callApi({ action: 'create', type: modalType, data: newItems.map(i => getRawItemForApi(modalType, i)) }, setIsSyncing);
     }
@@ -344,11 +376,11 @@ export default function App() {
     const updateFunc = isBulk ? (e) => setBulkEditData({...bulkEditData, value: e.target.value}) : handleInputChange;
     
     if (isParamDropdown && !(col.key === 'unit' && modalType === 'parameter')) {
-      return <select name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" required={isBulk}><option value="">Chọn...</option>{getParamOptions(paramTypeMap[col.key]).map((v, i) => <option key={i} value={v}>{v}</option>)}</select>;
+      return <select name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" required={isBulk}><option value="">Chọn...</option>{(paramOptionsMap[paramTypeMap[col.key]] || []).map((v, i) => <option key={i} value={v}>{v}</option>)}</select>;
     }
     if (col.key === 'status') {
       const pType = bulkEditData.type === 'connection' || modalType === 'connection' ? 'Trạng thái kết nối' : 'Trạng thái cấp quyền';
-      return <select name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" required={isBulk}><option value="">Chọn...</option>{getParamOptions(pType).map((v, i) => <option key={i} value={v}>{v}</option>)}</select>;
+      return <select name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" required={isBulk}><option value="">Chọn...</option>{(paramOptionsMap[pType] || []).map((v, i) => <option key={i} value={v}>{v}</option>)}</select>;
     }
     if (col.key === 'type' && modalType === 'parameter' && !isBulk) {
       return <><input type="text" name={col.key} value={value} onChange={updateFunc} list="paramTypesList" className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" placeholder="VD: Môi trường..." /><datalist id="paramTypesList"><option value="Môi trường" /><option value="Đơn vị" /><option value="Loại máy" /><option value="Hệ điều hành" /><option value="Nhóm quyền cấp phát" /><option value="Trạng thái kết nối" /><option value="Trạng thái cấp quyền" /></datalist></>;
@@ -356,10 +388,13 @@ export default function App() {
     if (col.key === 'value' && modalType === 'parameter' && !isBulk) return <textarea name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" rows="3" placeholder="Nhập các giá trị cách nhau bởi dấu phẩy (,)" />;
     if (['desc', 'note'].includes(col.key) && !isBulk) return <textarea name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" rows="2" />;
     if (['reqDate', 'compDate', 'expDate', 'approvedDate'].includes(col.key) && !isBulk) return <input type="date" name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" />;
+    
+    // Tắt autocomplete cho Tên đăng nhập khi Admin tạo User mới
+    if (col.key === 'username') return <input type="text" name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" required={isBulk} autoComplete="off" />;
+    
     return <input type="text" name={col.key} value={value} onChange={updateFunc} className="w-full border border-gray-300 rounded p-2 focus:ring-2 outline-none" placeholder={isBulk ? "Nhập giá trị mới..." : ""} required={isBulk} />;
   };
 
-  // --- MÀN HÌNH TẢI DỮ LIỆU ---
   if (isLoading) return <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" /><p className="font-medium">Đang tải...</p></div>;
   if (apiError) return <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50"><div className="bg-white p-8 rounded-2xl shadow-xl max-w-2xl text-center border-t-4 border-red-500"><AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" /><h1 className="text-2xl font-bold mb-2">Lỗi Kết nối Backend</h1><div className="bg-red-50 text-red-800 p-4 rounded-lg font-mono text-sm text-left mb-6">{apiError}</div><button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-600 text-white rounded-lg">Thử lại</button></div></div>;
 
@@ -421,7 +456,7 @@ export default function App() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"><div className={`bg-white rounded-xl shadow-2xl w-full ${inputMode === 'grid' && modalType !== 'systemUser' && modalType !== 'userGroup' ? 'max-w-[95vw]' : 'max-w-2xl'} max-h-[95vh] flex flex-col`}><div className="flex justify-between items-center p-6 border-b bg-slate-50/50"><h3 className="text-xl font-bold">{modalType === 'systemUser' ? (formData.id ? 'Sửa Tài khoản' : 'Tạo Tài khoản') : modalType === 'userGroup' ? (formData.id ? 'Sửa Nhóm Quyền' : 'Tạo Nhóm Quyền') : (formData.id ? `Cập nhật dữ liệu` : `Thêm mới dữ liệu`)}</h3><button type="button" onClick={closeModal}><X className="w-5 h-5"/></button></div><form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col">{!formData.id && modalType !== 'systemUser' && modalType !== 'userGroup' && (<div className="flex justify-center border-b p-4"><div className="flex bg-gray-100 p-1.5 rounded-lg"><button type="button" onClick={() => setInputMode('form')} className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-medium ${inputMode === 'form' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}><ListIcon className="w-4 h-4" /> Form</button><button type="button" onClick={() => setInputMode('grid')} className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-medium ${inputMode === 'grid' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}><TableIcon className="w-4 h-4" /> Dán từ Excel</button></div></div>)}<div className="flex-1 overflow-y-auto p-6">{inputMode === 'form' ? (modalType === 'userGroup' ? (<div className="space-y-6"><div><label className="block text-sm font-medium mb-1">Tên Nhóm *</label><input required name="groupName" value={formData.groupName || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" /></div><div className="border rounded-lg overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-gray-50 border-b"><tr><th className="px-4 py-2">Phân hệ</th><th className="px-4 py-2 text-center">Xem</th><th className="px-4 py-2 text-center">Thêm/Sửa</th></tr></thead><tbody className="divide-y">{SYSTEM_MODULES.map((mod, i) => (<tr key={i}><td className="px-4 py-2">{mod.label}</td><td className="px-4 py-2 text-center"><input type="checkbox" checked={formData.permissions?.[mod.id]?.view || false} onChange={(e) => handleGroupPermChange(mod.id, 'view', e.target.checked)} /></td><td className="px-4 py-2 text-center"><input type="checkbox" checked={formData.permissions?.[mod.id]?.add || false} onChange={(e) => handleGroupPermChange(mod.id, 'add', e.target.checked)} /></td></tr>))}</tbody></table></div></div>) : modalType === 'systemUser' ? (<div className="grid grid-cols-2 gap-4"><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Tên đăng nhập *</label><input required name="username" value={formData.username || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" autoComplete="username" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Mật khẩu {formData.id ? '' : '*'}</label><input required={!formData.id} name="password" value={formData.password || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="password" placeholder={formData.id ? "(Nhập để đổi mật khẩu)" : "Nhập mật khẩu..."} autoComplete={formData.id ? "new-password" : "current-password"} /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Họ và Tên</label><input required name="fullName" value={formData.fullName || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Gán Nhóm Quyền *</label><select required name="groupId" value={formData.groupId || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none"><option value="">-- Chọn Nhóm --</option>{userGroups.map(g => <option key={g.id} value={g.id}>{g.groupName}</option>)}</select></div></div>) : (<div className="grid grid-cols-2 gap-4">{(modalConfigs[modalType] || []).map((col, i) => <div key={i} className={['desc', 'note', 'purpose', 'value'].includes(col.key) ? 'col-span-2' : 'col-span-2 sm:col-span-1'}><label className="block text-sm font-medium mb-1">{col.label}</label>{renderFieldInput(col, formData[col.key] || '', false)}</div>)}</div>)) : (<div className="overflow-x-auto border rounded-lg bg-gray-50/50 p-4"><table className="w-full text-sm text-left"><thead className="bg-gray-100"><tr><th className="px-2 py-2 text-center border-b w-10">#</th>{(modalConfigs[modalType] || []).map((c, i) => <th key={i} className="px-2 py-2 border-b">{c.label}</th>)}<th className="px-2 py-2 border-b w-10"></th></tr></thead><tbody>{gridRows.map((row, rIdx) => (<tr key={rIdx}><td className="px-2 py-1 text-center text-gray-400">{rIdx + 1}</td>{(modalConfigs[modalType] || []).map((c, cIdx) => <td key={cIdx} className="px-1 py-1 min-w-[120px]"><input type="text" className="w-full border border-gray-300 rounded px-2 py-1.5 outline-none" value={row[c.key] || ''} onChange={(e) => handleGridChange(rIdx, c.key, e.target.value)} onPaste={(e) => handleGridPaste(e, rIdx, cIdx, modalConfigs[modalType])} /></td>)}<td className="px-2 py-1 text-center"><button type="button" onClick={() => removeGridRow(rIdx)} className="text-red-400"><Trash2 className="w-4 h-4"/></button></td></tr>))}</tbody></table><button type="button" onClick={addGridRow} className="mt-4 flex items-center gap-1 text-sm font-medium text-emerald-600"><Plus className="w-4 h-4" /> Thêm dòng trống</button></div>)}</div><div className="flex justify-end gap-3 p-4 border-t bg-slate-50"><button type="button" onClick={closeModal} className="px-6 py-2 border rounded-lg">Hủy</button><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="px-6 py-2 text-white rounded-lg">Lưu dữ liệu</button></div></form></div></div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"><div className={`bg-white rounded-xl shadow-2xl w-full ${inputMode === 'grid' && modalType !== 'systemUser' && modalType !== 'userGroup' ? 'max-w-[95vw]' : 'max-w-2xl'} max-h-[95vh] flex flex-col`}><div className="flex justify-between items-center p-6 border-b bg-slate-50/50"><h3 className="text-xl font-bold">{modalType === 'systemUser' ? (formData.id ? 'Sửa Tài khoản' : 'Tạo Tài khoản') : modalType === 'userGroup' ? (formData.id ? 'Sửa Nhóm Quyền' : 'Tạo Nhóm Quyền') : (formData.id ? `Cập nhật dữ liệu` : `Thêm mới dữ liệu`)}</h3><button type="button" onClick={closeModal}><X className="w-5 h-5"/></button></div><form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col">{!formData.id && modalType !== 'systemUser' && modalType !== 'userGroup' && (<div className="flex justify-center border-b p-4"><div className="flex bg-gray-100 p-1.5 rounded-lg"><button type="button" onClick={() => setInputMode('form')} className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-medium ${inputMode === 'form' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}><ListIcon className="w-4 h-4" /> Form</button><button type="button" onClick={() => setInputMode('grid')} className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-medium ${inputMode === 'grid' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}><TableIcon className="w-4 h-4" /> Dán từ Excel</button></div></div>)}<div className="flex-1 overflow-y-auto p-6">{inputMode === 'form' ? (modalType === 'userGroup' ? (<div className="space-y-6"><div><label className="block text-sm font-medium mb-1">Tên Nhóm *</label><input required name="groupName" value={formData.groupName || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" /></div><div className="border rounded-lg overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-gray-50 border-b"><tr><th className="px-4 py-2">Phân hệ</th><th className="px-4 py-2 text-center">Xem</th><th className="px-4 py-2 text-center">Thêm/Sửa</th></tr></thead><tbody className="divide-y">{SYSTEM_MODULES.map((mod, i) => (<tr key={i}><td className="px-4 py-2">{mod.label}</td><td className="px-4 py-2 text-center"><input type="checkbox" checked={formData.permissions?.[mod.id]?.view || false} onChange={(e) => handleGroupPermChange(mod.id, 'view', e.target.checked)} /></td><td className="px-4 py-2 text-center"><input type="checkbox" checked={formData.permissions?.[mod.id]?.add || false} onChange={(e) => handleGroupPermChange(mod.id, 'add', e.target.checked)} /></td></tr>))}</tbody></table></div></div>) : modalType === 'systemUser' ? (<div className="grid grid-cols-2 gap-4"><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Tên đăng nhập *</label><input required name="username" value={formData.username || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" autoComplete="off" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Mật khẩu {formData.id ? '' : '*'}</label><input required={!formData.id} name="password" value={formData.password || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="password" placeholder={formData.id ? "(Nhập để đổi mật khẩu)" : "Nhập mật khẩu..."} autoComplete="new-password" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Họ và Tên</label><input required name="fullName" value={formData.fullName || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none" type="text" /></div><div className="col-span-2 sm:col-span-1"><label className="block text-sm font-medium mb-1">Gán Nhóm Quyền *</label><select required name="groupId" value={formData.groupId || ''} onChange={handleInputChange} className="w-full border rounded p-2 outline-none"><option value="">-- Chọn Nhóm --</option>{userGroups.map(g => <option key={g.id} value={g.id}>{g.groupName}</option>)}</select></div></div>) : (<div className="grid grid-cols-2 gap-4">{(modalConfigs[modalType] || []).map((col, i) => <div key={i} className={['desc', 'note', 'purpose', 'value'].includes(col.key) ? 'col-span-2' : 'col-span-2 sm:col-span-1'}><label className="block text-sm font-medium mb-1">{col.label}</label>{renderFieldInput(col, formData[col.key] || '', false)}</div>)}</div>)) : (<div className="overflow-x-auto border rounded-lg bg-gray-50/50 p-4"><table className="w-full text-sm text-left"><thead className="bg-gray-100"><tr><th className="px-2 py-2 text-center border-b w-10">#</th>{(modalConfigs[modalType] || []).map((c, i) => <th key={i} className="px-2 py-2 border-b">{c.label}</th>)}<th className="px-2 py-2 border-b w-10"></th></tr></thead><tbody>{gridRows.map((row, rIdx) => (<tr key={rIdx}><td className="px-2 py-1 text-center text-gray-400">{rIdx + 1}</td>{(modalConfigs[modalType] || []).map((c, cIdx) => <td key={cIdx} className="px-1 py-1 min-w-[120px]"><input type="text" className="w-full border border-gray-300 rounded px-2 py-1.5 outline-none" value={row[c.key] || ''} onChange={(e) => handleGridChange(rIdx, c.key, e.target.value)} onPaste={(e) => handleGridPaste(e, rIdx, cIdx, modalConfigs[modalType])} /></td>)}<td className="px-2 py-1 text-center"><button type="button" onClick={() => removeGridRow(rIdx)} className="text-red-400"><Trash2 className="w-4 h-4"/></button></td></tr>))}</tbody></table><button type="button" onClick={addGridRow} className="mt-4 flex items-center gap-1 text-sm font-medium text-emerald-600"><Plus className="w-4 h-4" /> Thêm dòng trống</button></div>)}</div><div className="flex justify-end gap-3 p-4 border-t bg-slate-50"><button type="button" onClick={closeModal} className="px-6 py-2 border rounded-lg">Hủy</button><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="px-6 py-2 text-white rounded-lg">Lưu dữ liệu</button></div></form></div></div>
       )}
 
       {showChangePasswordModal && (
