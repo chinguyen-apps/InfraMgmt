@@ -2,7 +2,7 @@ export const HEADER_COLOR = '#006D5B';
 export const BG_BODY = '#f4f6f8';
 export const BG_CONTAINER = '#ffffff';
 
-export const API_URL = "[https://script.google.com/macros/s/AKfycbw59l0AdwzSaiBJ7mvFt-V0kDCfOnn_n0YZ62PyctqdSfq75eaGUVTBUcZrVT8_RzRjmg/exec](https://script.google.com/macros/s/AKfycbw59l0AdwzSaiBJ7mvFt-V0kDCfOnn_n0YZ62PyctqdSfq75eaGUVTBUcZrVT8_RzRjmg/exec)"; 
+export const API_URL = 'https://script.google.com/macros/s/AKfycbw59l0AdwzSaiBJ7mvFt-V0kDCfOnn_n0YZ62PyctqdSfq75eaGUVTBUcZrVT8_RzRjmg/exec'; 
 
 export const SYSTEM_MODULES = [
   { id: 'dashboard', label: 'Dashboard' },
