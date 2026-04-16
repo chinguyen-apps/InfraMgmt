@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Server, Network, UserPlus, AppWindow, List, ShieldCheck, Users, Waypoints, BookDashed } from 'lucide-react';
+import { LayoutDashboard, Server, Network, UserPlus, AppWindow, List, ShieldCheck, Users, Share2, BookDashed } from 'lucide-react';
 import { HEADER_COLOR } from '../constants';
 
 export default function Sidebar({ activeTab, setActiveTab, hasViewPermission }) {
@@ -26,7 +26,7 @@ export default function Sidebar({ activeTab, setActiveTab, hasViewPermission }) 
         
         {showResourceGroup && <div className="pt-4 pb-2 px-4 text-xs font-semibold text-white/50 uppercase tracking-wider">Tài nguyên</div>}
         <TabBtn id="servers" icon={Server} label="Máy chủ (Servers)" />
-        <TabBtn id="vips" icon={Waypoints} label="VIPs" />
+        <TabBtn id="vips" icon={Share2} label="VIPs" />
         <TabBtn id="dns" icon={BookDashed} label="DNS Records" />
 
         {showSecurityGroup && <div className="pt-4 pb-2 px-4 text-xs font-semibold text-white/50 uppercase tracking-wider">Bảo mật</div>}
