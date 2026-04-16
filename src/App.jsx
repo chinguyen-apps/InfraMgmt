@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, Check, AlertCircle, Building2, LogIn, LogOut, KeyRound, Loader2, List as ListIcon, Table as TableIcon } from 'lucide-react';
+import { Search, X, Check, AlertCircle, Building2, LogIn, LogOut, KeyRound, Loader2, List as ListIcon, Table as TableIcon, AppWindow } from 'lucide-react';
 import { HEADER_COLOR, BG_BODY, BG_CONTAINER, SYSTEM_MODULES, modalConfigs } from './constants';
 import { hashSHA256, callApi } from './helpers';
 import Sidebar from './components/Sidebar';
@@ -338,8 +338,6 @@ export default function App() {
       {showChangePasswordModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative"><button onClick={() => setShowChangePasswordModal(false)} className="absolute top-4 right-4"><X className="w-5 h-5"/></button><div className="text-center mb-6"><div style={{ backgroundColor: HEADER_COLOR }} className="w-16 h-16 rounded-full flex items-center justify-center text-white mx-auto mb-4"><KeyRound className="w-8 h-8"/></div><h2 className="text-2xl font-bold">Đổi Mật Khẩu</h2></div><form onSubmit={handleChangePassword} className="space-y-4">{passwordError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{passwordError}</div>}{passwordSuccess && <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm flex items-center gap-2"><Check className="w-4 h-4"/>{passwordSuccess}</div>}<div><label className="block text-sm font-medium mb-1">Mật khẩu hiện tại</label><input required value={passwordForm.currentPassword} onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})} className="w-full border rounded-lg p-3 outline-none" type="password" /></div><div><label className="block text-sm font-medium mb-1">Mật khẩu mới</label><input required value={passwordForm.newPassword} onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})} className="w-full border rounded-lg p-3 outline-none" type="password" /></div><div><label className="block text-sm font-medium mb-1">Xác nhận mật khẩu mới</label><input required value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})} className="w-full border rounded-lg p-3 outline-none" type="password" /></div><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="w-full text-white rounded-lg p-3 font-bold mt-2">Xác nhận đổi</button></form></div></div>
       )}
-
-      <style>{`::selection { background-color: #a7f3d0; color: #064e3b; } .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }`}</style>
     </div>
   );
 }
