@@ -444,7 +444,18 @@ export default function App() {
         </header>
 
         <div className="p-8 flex-1 overflow-y-auto custom-scrollbar relative">
-          {activeTab === 'dashboard' && hasViewPermission('dashboard') && <Dashboard selectedUnit={selectedUnit} filteredServers={filteredServers} filteredConnections={filteredConnections} filteredPermissions={filteredPermissions} />}
+          {activeTab === 'dashboard' && hasViewPermission('dashboard') && (
+            <Dashboard 
+              selectedUnit={selectedUnit} 
+              filteredServers={filteredServers} 
+              filteredConnections={filteredConnections} 
+              filteredPermissions={filteredPermissions}
+              filteredVIPs={filteredVips}      // Đã có sẵn state này trong App.jsx
+              filteredDNS={filteredDns}        // Đã có sẵn state này trong App.jsx
+              filteredApps={formattedApps}     // Dùng formattedApps đã có sẵn trong App.jsx
+              filteredDBs={[]}                 // App.jsx hiện chưa có chức năng quản lý DB riêng nên tạm truyền mảng rỗng []
+            />
+          )}
           {activeTab === 'servers' && hasViewPermission('servers') && <GenericTable title="Quản lý Máy chủ (Server)" type="server" moduleId="servers" data={filteredServers} config={modalConfigs.server} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('servers')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
           {activeTab === 'vips' && hasViewPermission('vips') && <GenericTable title="Quản lý Virtual IPs (VIPs)" type="vip" moduleId="vips" data={filteredVips} config={modalConfigs.vip} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('vips')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
           {activeTab === 'dns' && hasViewPermission('dns') && <GenericTable title="Quản lý DNS Records" type="dns" moduleId="dns" data={filteredDns} config={modalConfigs.dns} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('dns')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
