@@ -112,6 +112,9 @@ export default function AppStore({ isPublic, filteredApps, hasAddPermission, ope
                   </div>
                 ))}
               </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Modal chi tiết ứng dụng */}
