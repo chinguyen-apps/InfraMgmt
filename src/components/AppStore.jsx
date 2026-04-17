@@ -14,25 +14,15 @@ export default function AppStore({ isPublic, filteredApps, hasAddPermission, ope
     setCopyToast(true); setTimeout(() => setCopyToast(false), 2000);
   };
 
-  // 1. Sắp xếp ưu tiên: Web (1) -> DB (2) -> Khác (3), cùng loại thì xếp theo Tên (A-Z)
-  const sortedApps = [...filteredApps].sort((a, b) => {
-    const getWeight = (type) => {
-      const t = String(type || '').toLowerCase();
-      return t === 'web' ? 1 : t === 'db' ? 2 : 3;
-    };
-    
-    const weightA = getWeight(a.type);
-    const weightB = getWeight(b.type);
-    
-    if (weightA !== weightB) return weightA - weightB;
-    return (a.name || '').localeCompare(b.name || '');
-  });
-
-  // 2. Nhóm các app đã được sắp xếp (Lưu ý: Dùng sortedApps.reduce thay vì filteredApps.reduce)
-  const groupedApps = sortedApps.reduce((acc, app) => {
+  // Nhóm theo Đơn vị -> Môi trường -> Phân loại (Web/DB/Khác)
+  const groupedApps = filteredApps.reduce((acc, app) => {
     if (!acc[app.unit]) acc[app.unit] = {};
-    if (!acc[app.unit][app.env]) acc[app.unit][app.env] = [];
-    acc[app.unit][app.env].push(app);
+    if (!acc[app.unit][app.env]) acc[app.unit][app.env] = { Web: [], DB: [], Khác: [] }; // Khởi tạo sẵn 3 hàng theo thứ tự ưu tiên
+    
+    const t = String(app.type || '').toLowerCase();
+    const typeKey = t === 'web' ? 'Web' : t === 'db' ? 'DB' : 'Khác';
+    
+    acc[app.unit][app.env][typeKey].push(app);
     return acc;
   }, {});
 
@@ -58,58 +48,70 @@ export default function AppStore({ isPublic, filteredApps, hasAddPermission, ope
                 <h3 className="text-xl font-bold">{unit}</h3>
               </div>
               <div className="space-y-8 pt-2">
-                {Object.entries(envs).map(([env, appsInEnv]) => (
-                  <div key={env} className="space-y-4">
-                    <h4 className="text-md font-semibold text-indigo-600 flex items-center gap-2">
+                {Object.entries(envs).map(([env, typesInEnv]) => (
+                  <div key={env} className="space-y-6">
+                    <h4 className="text-md font-semibold text-indigo-600 flex items-center gap-2 border-b pb-2">
                       <span className="w-2 h-2 rounded-full bg-indigo-500"></span> Môi trường {env}
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pl-4 border-l-2 border-indigo-50">
-                      {appsInEnv.map(app => (
-                        <div key={app.id} onClick={() => setSelectedApp(app)} className="bg-gray-50/50 p-5 rounded-2xl hover:bg-white hover:shadow-xl transition-all cursor-pointer border group flex flex-col items-center text-center relative">
-                          
-                          {/* Nút Edit và Delete dành cho người có quyền */}
-                          {!isPublic && hasAddPermission && (
-                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); openEditModal(app); }} 
-                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
-                                title="Sửa ứng dụng"
-                              >
-                                <Edit className="w-4 h-4"/>
-                              </button>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); setAppToDelete(app); }} 
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
-                                title="Xóa ứng dụng"
-                              >
-                                <Trash2 className="w-4 h-4"/>
-                              </button>
-                            </div>
-                          )}
+                    
+                    {/* Tách thành từng hàng cho từng phân loại */}
+                    <div className="pl-4 space-y-8 border-l-2 border-indigo-50">
+                      {['Web', 'DB', 'Khác'].map(typeKey => {
+                        const appsInType = typesInEnv[typeKey];
+                        if (!appsInType || appsInType.length === 0) return null; // Bỏ qua nếu không có app nào thuộc loại này
+                        
+                        return (
+                          <div key={typeKey} className="space-y-4">
+                            <h5 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${typeKey === 'DB' ? 'text-amber-600' : typeKey === 'Web' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                              {typeKey === 'DB' ? <Database className="w-4 h-4"/> : <AppWindow className="w-4 h-4"/>}
+                              Phân loại: {typeKey}
+                            </h5>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                              {/* Sắp xếp A-Z theo tên trước khi render */}
+                              {appsInType.sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(app => (
+                                <div key={app.id} onClick={() => setSelectedApp(app)} className="bg-gray-50/50 p-5 rounded-2xl hover:bg-white hover:shadow-xl transition-all cursor-pointer border group flex flex-col items-center text-center relative">
+                                  
+                                  {!isPublic && hasAddPermission && (
+                                    <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); openEditModal(app); }} 
+                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
+                                        title="Sửa ứng dụng"
+                                      >
+                                        <Edit className="w-4 h-4"/>
+                                      </button>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setAppToDelete(app); }} 
+                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                                        title="Xóa ứng dụng"
+                                      >
+                                        <Trash2 className="w-4 h-4"/>
+                                      </button>
+                                    </div>
+                                  )}
 
-                          {/* Sửa icon và màu động tuỳ vào Type (Web/DB/Khác) */}
-                          <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white mb-4 shadow-md bg-gradient-to-tr ${app.type === 'DB' ? 'from-amber-500 to-orange-600' : app.type === 'Web' ? 'from-emerald-500 to-teal-600' : 'from-slate-400 to-slate-500'}`}>
-                            {app.type === 'DB' ? <Database className="w-6 h-6" /> : <AppWindow className="w-6 h-6" />}
+                                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white mb-4 shadow-md bg-gradient-to-tr ${app.type === 'DB' ? 'from-amber-500 to-orange-600' : app.type === 'Web' ? 'from-emerald-500 to-teal-600' : 'from-slate-400 to-slate-500'}`}>
+                                    {app.type === 'DB' ? <Database className="w-6 h-6" /> : <AppWindow className="w-6 h-6" />}
+                                  </div>
+                                  
+                                  <h3 className="font-bold text-gray-800 text-base mb-1">{app.name}</h3>
+                                  
+                                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full mb-2 ${app.type === 'DB' ? 'bg-amber-100 text-amber-700' : app.type === 'Web' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                    {app.type ? `APP ${app.type}` : 'KHÁC'}
+                                  </span>
+                                  
+                                  <p className="text-xs text-gray-500 line-clamp-2 h-8 mt-1">{app.desc}</p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          
-                          <h3 className="font-bold text-gray-800 text-base mb-1">{app.name}</h3>
-                          
-                          {/* Hiển thị Badge Type với 3 trạng thái */}
-                          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full mb-2 ${app.type === 'DB' ? 'bg-amber-100 text-amber-700' : app.type === 'Web' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                            {app.type ? `APP ${app.type}` : 'KHÁC'}
-                          </span>
-                          
-                          <p className="text-xs text-gray-500 line-clamp-2 h-8 mt-1">{app.desc}</p>
-                          
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          ))}
-        </div>
       )}
 
       {/* Modal chi tiết ứng dụng */}
