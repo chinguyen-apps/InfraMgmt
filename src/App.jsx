@@ -78,6 +78,14 @@ export default function App() {
                 normalized[key] = item[rawKey] !== undefined ? item[rawKey] : '';
                 if (String(normalized[key]).trim() !== '') hasValue = true;
             });
+
+            // --- THÊM ĐOẠN NÀY: Ánh xạ trường type của app ---
+            if (type === 'app' && item.type) {
+                normalized.type = item.type;
+                hasValue = true;
+            }
+            // --------------------------------------------------
+            
             if (item.permissions !== undefined) {
               try {
                 normalized.permissions = typeof item.permissions === 'string' ? JSON.parse(item.permissions) : item.permissions;
@@ -180,6 +188,13 @@ export default function App() {
     if (!mapping) return normalizedItem;
     const rawItem = { id: normalizedItem.id };
     Object.keys(mapping).forEach(key => { rawItem[mapping[key]] = normalizedItem[key]; });
+
+    // --- THÊM ĐOẠN NÀY ĐỂ GỬI TRƯỜNG TYPE LÊN API ---
+    if (type === 'app' && normalizedItem.type !== undefined) {
+      rawItem.type = normalizedItem.type;
+    }
+    // ------------------------------------------------
+    
     if (normalizedItem.permissions !== undefined) rawItem.permissions = typeof normalizedItem.permissions === 'object' ? JSON.stringify(normalizedItem.permissions) : normalizedItem.permissions;
     return rawItem;
   };
@@ -332,6 +347,16 @@ export default function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     let submitFormData = { ...formData };
+
+    // --- THÊM LOGIC AUTO SET TYPE KHI NHẬP FORM ---
+    if (modalType === 'app') {
+       const w = String(submitFormData.webLink || '').trim();
+       const d = String(submitFormData.dbString || '').trim();
+       if (w) submitFormData.type = 'Web';
+       else if (d) submitFormData.type = 'DB';
+       else submitFormData.type = '';
+    }
+    // ----------------------------------------------
     
     if (modalType === 'systemUser') {
       if (submitFormData.password) submitFormData.password = await hashSHA256(submitFormData.password);
@@ -356,6 +381,17 @@ export default function App() {
         if (modalType === 'permission' && s === 'done' && !pr.compDate) pr.compDate = today;
         if (modalType === 'connection' && s === 'active' && !pr.compDate) pr.compDate = today;
         if (selectedUnit !== 'All' && !pr.unit) pr.unit = selectedUnit;
+
+        // --- THÊM LOGIC TYPE NẾU THÊM MỚI TỪ GRID EXCEL ---
+        if (modalType === 'app') {
+           const w = String(pr.webLink || '').trim();
+           const d = String(pr.dbString || '').trim();
+           if (w) pr.type = 'Web';
+           else if (d) pr.type = 'DB';
+           else pr.type = '';
+        }
+        // --------------------------------------------------
+        
         return pr;
       }));
       if (newItems.length === 0) return;
