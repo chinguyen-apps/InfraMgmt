@@ -10,7 +10,7 @@ export const hashSHA256 = async (text) => {
 export const callApi = async (payload, setIsSyncing) => {
   console.log("=== DEBUG API_URL ===", API_URL);
   
-  if(!API_URL || !API_URL.startsWith("https://script.google.com/")) {
+  if(!API_URL || !API_URL.startsWith("https://")) {
     return { status: 'error', message: `Chưa cấu hình API_URL hợp lệ. Vui lòng kiểm tra lại file src/constants.js. \n\nGiá trị hiện tại đang là:\n${API_URL}` };
   }
 
