@@ -406,6 +406,13 @@ export default function App() {
         <header style={{ backgroundColor: HEADER_COLOR }} className="p-4 flex justify-between items-center z-10 shadow-md shrink-0 text-white">
           <div className="flex items-center gap-2 font-bold text-xl"><AppWindow className="w-6 h-6" /> InfraStore</div>
           <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg border border-white/20">
+              <Building2 className="w-4 h-4 text-white/80" />
+              <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="bg-transparent text-sm font-medium text-white outline-none cursor-pointer">
+                <option value="All" className="text-gray-800">Tất cả Đơn vị</option>
+                {allUnits.map((u, i) => <option key={i} value={u} className="text-gray-800">{u}</option>)}
+              </select>
+            </div>
             <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 w-64 md:w-80 focus-within:bg-white/20"><Search className="w-4 h-4 text-white/70 mr-2" /><input type="text" placeholder="Tìm ứng dụng..." className="bg-transparent border-none outline-none text-sm w-full text-white placeholder-white/70" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
             <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg font-medium text-sm"><LogIn className="w-4 h-4" /> Đăng nhập</button>
           </div>
