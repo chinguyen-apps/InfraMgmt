@@ -220,33 +220,44 @@ export default function Dashboard({
 
       {/* Global Highlights - Chỉ hiện khi chọn "Tất cả" */}
       {selectedUnit === 'All' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <GlobalStatCard 
-            title="Tổng Máy Chủ" 
-            value={filteredServers.length} 
-            icon={Server} 
-            colorClass={{ bg: 'bg-[#1a5f4f]/10', text: 'text-[#1a5f4f]' }} 
-          />
-          <GlobalStatCard 
-            title="Tổng VIPs / DNS" 
-            value={filteredVIPs.length + filteredDNS.length} 
-            icon={Network} 
-            colorClass={{ bg: 'bg-indigo-50', text: 'text-indigo-600' }}
-          />
-          <GlobalStatCard 
-            title="Kết nối Active" 
-            value={countStatus(filteredConnections, ['active'])} 
-            icon={Activity} 
-            colorClass={{ bg: 'bg-emerald-50', text: 'text-emerald-600' }}
-          />
-          <GlobalStatCard 
-            title="Cấp quyền (Done)" 
-            value={countStatus(filteredPermissions, ['done'])} 
-            icon={ShieldCheck} 
-            colorClass={{ bg: 'bg-blue-50', text: 'text-blue-600' }}
-          />
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6"> {/* Đổi lg:grid-cols-4 thành lg:grid-cols-5 */}
+        <GlobalStatCard 
+          title="Tổng Máy Chủ" 
+          value={filteredServers.length} 
+          icon={Server} 
+          colorClass={{ bg: 'bg-[#1a5f4f]/10', text: 'text-[#1a5f4f]' }} 
+        />
+        
+        {/* Thẻ VIPs đứng độc lập */}
+        <GlobalStatCard 
+          title="Tổng Virtual IPs" 
+          value={filteredVIPs.length} 
+          icon={Network} 
+          colorClass={{ bg: 'bg-indigo-50', text: 'text-indigo-600' }}
+        />
+    
+        {/* Thẻ DNS Records đứng độc lập */}
+        <GlobalStatCard 
+          title="DNS Records" 
+          value={filteredDNS.length} 
+          icon={Globe} 
+          colorClass={{ bg: 'bg-blue-50', text: 'text-blue-600' }}
+        />
+    
+        <GlobalStatCard 
+          title="Kết nối Active" 
+          value={countStatus(filteredConnections, ['active'])} 
+          icon={Activity} 
+          colorClass={{ bg: 'bg-emerald-50', text: 'text-emerald-600' }}
+        />
+        <GlobalStatCard 
+          title="Cấp quyền (Done)" 
+          value={countStatus(filteredPermissions, ['done'])} 
+          icon={ShieldCheck} 
+          colorClass={{ bg: 'bg-purple-50', text: 'text-purple-600' }}
+        />
+      </div>
+    )}
 
       {/* Render thông tin chi tiết từng Đơn vị */}
       <div className="space-y-6">
