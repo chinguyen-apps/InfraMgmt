@@ -48,80 +48,89 @@ export default function App() {
   const [inputMode, setInputMode] = useState('grid');
   const [gridRows, setGridRows] = useState([{}]);
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      const res = await callApi({ action: 'read' }, setIsSyncing);
-      if (res && res.status === 'success') {
-        const d = res.data;
-        const newHeaderMaps = {};
+  // 1. Khai báo hàm fetchData chứa TẤT CẢ logic xử lý dữ liệu của bạn
+  const fetchData = async () => {
+    const res = await callApi({ action: 'read' }, setIsSyncing);
+    if (res && res.status === 'success') {
+      const d = res.data;
+      const newHeaderMaps = {};
+      
+      const processData = (type, rawData, configMapping) => {
+        if (!rawData || !Array.isArray(rawData) || rawData.length === 0) return [];
+        const rawKeys = Object.keys(rawData[0]).filter(k => k !== 'id');
         
-        const processData = (type, rawData, configMapping) => {
-          if (!rawData || !Array.isArray(rawData) || rawData.length === 0) return [];
-          const rawKeys = Object.keys(rawData[0]).filter(k => k !== 'id');
-          
-          const keyToRawMap = {};
-          configMapping.forEach(({key, label}, i) => {
-              if (rawKeys.includes(key)) keyToRawMap[key] = key;
-              else {
-                  const labelMatch = rawKeys.find(rk => rk.toLowerCase().trim() === label.toLowerCase().trim());
-                  if (labelMatch) keyToRawMap[key] = labelMatch;
-                  else if (rawKeys.length === configMapping.length && i < rawKeys.length) keyToRawMap[key] = rawKeys[i];
-                  else keyToRawMap[key] = label; 
-              }
+        const keyToRawMap = {};
+        configMapping.forEach(({key, label}, i) => {
+            if (rawKeys.includes(key)) keyToRawMap[key] = key;
+            else {
+                const labelMatch = rawKeys.find(rk => rk.toLowerCase().trim() === label.toLowerCase().trim());
+                if (labelMatch) keyToRawMap[key] = labelMatch;
+                else if (rawKeys.length === configMapping.length && i < rawKeys.length) keyToRawMap[key] = rawKeys[i];
+                else keyToRawMap[key] = label; 
+            }
+        });
+        newHeaderMaps[type] = keyToRawMap; 
+        return rawData.map(item => {
+          const normalized = { id: item.id };
+          let hasValue = false; 
+          configMapping.forEach(({key}) => {
+              const rawKey = keyToRawMap[key];
+              normalized[key] = item[rawKey] !== undefined ? item[rawKey] : '';
+              if (String(normalized[key]).trim() !== '') hasValue = true;
           });
-          newHeaderMaps[type] = keyToRawMap; 
-          return rawData.map(item => {
-            const normalized = { id: item.id };
-            let hasValue = false; 
-            configMapping.forEach(({key}) => {
-                const rawKey = keyToRawMap[key];
-                normalized[key] = item[rawKey] !== undefined ? item[rawKey] : '';
-                if (String(normalized[key]).trim() !== '') hasValue = true;
-            });
 
-            // --- THÊM ĐOẠN NÀY: Ánh xạ trường type của app ---
-            if (type === 'app' && item.type) {
-                normalized.type = item.type;
-                hasValue = true;
-            }
-            // --------------------------------------------------
-            
-            if (item.permissions !== undefined) {
-              try {
-                normalized.permissions = typeof item.permissions === 'string' ? JSON.parse(item.permissions) : item.permissions;
-                if (Object.keys(normalized.permissions || {}).length > 0) hasValue = true;
-              } catch(e) { normalized.permissions = {}; }
-            }
-            return hasValue ? normalized : null; 
-          }).filter(Boolean);
-        };
-
-        setServers(processData('server', d.server, modalConfigs.server));
-        setVips(processData('vip', d.vip, modalConfigs.vip));
-        setDns(processData('dns', d.dns, modalConfigs.dns));
-        setPermissions(processData('permission', d.permission, modalConfigs.permission));
-        setApps(processData('app', d.app, modalConfigs.app));
-        setParameters(processData('parameter', d.parameter, modalConfigs.parameter));
-        setUserGroups(processData('userGroup', d.userGroup, [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền thao tác'}]));
-        setSystemUsers(processData('systemUser', d.systemUser, [{key: 'username', label: 'Tài khoản'}, {key: 'password', label: 'Mật khẩu'}, {key: 'fullName', label: 'Họ Tên'}, {key: 'groupId', label: 'Nhóm Quyền'}]));
-        
-        // Map dữ liệu Connection & Kích hoạt trạng thái Expired một lần duy nhất
-        const rawConns = processData('connection', d.connection, modalConfigs.connection);
-        const today = new Date().toISOString().split('T')[0];
-        setConnections(rawConns.map(conn => {
-          if (conn.expDate && conn.expDate < today && String(conn.status || '').toLowerCase() !== 'expired') {
-            return { ...conn, status: 'Expired' };
+          // Ánh xạ trường type của app
+          if (type === 'app' && item.type) {
+              normalized.type = item.type;
+              hasValue = true;
           }
-          return conn;
-        }));
-        
-        setHeaderMaps(newHeaderMaps);
-      } else {
-        setApiError(res?.message || 'Có lỗi không xác định xuất phát từ Google Apps Script.');
-      }
-      setIsLoading(false);
-    };
-    fetchInitialData();
+          
+          if (item.permissions !== undefined) {
+            try {
+              normalized.permissions = typeof item.permissions === 'string' ? JSON.parse(item.permissions) : item.permissions;
+              if (Object.keys(normalized.permissions || {}).length > 0) hasValue = true;
+            } catch(e) { normalized.permissions = {}; }
+          }
+          return hasValue ? normalized : null; 
+        }).filter(Boolean);
+      };
+
+      setServers(processData('server', d.server, modalConfigs.server));
+      setVips(processData('vip', d.vip, modalConfigs.vip));
+      setDns(processData('dns', d.dns, modalConfigs.dns));
+      setPermissions(processData('permission', d.permission, modalConfigs.permission));
+      setApps(processData('app', d.app, modalConfigs.app));
+      setParameters(processData('parameter', d.parameter, modalConfigs.parameter));
+      setUserGroups(processData('userGroup', d.userGroup, [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền thao tác'}]));
+      
+      // Chú ý: Đã xóa cột password khỏi processData của systemUser để bảo mật
+      setSystemUsers(processData('systemUser', d.systemUser, [{key: 'username', label: 'Tài khoản'}, {key: 'fullName', label: 'Họ Tên'}, {key: 'groupId', label: 'Nhóm Quyền'}]));
+      
+      const rawConns = processData('connection', d.connection, modalConfigs.connection);
+      const today = new Date().toISOString().split('T')[0];
+      setConnections(rawConns.map(conn => {
+        if (conn.expDate && conn.expDate < today && String(conn.status || '').toLowerCase() !== 'expired') {
+          return { ...conn, status: 'Expired' };
+        }
+        return conn;
+      }));
+      
+      setHeaderMaps(newHeaderMaps);
+    } else {
+      setApiError(res?.message || 'Có lỗi không xác định xuất phát từ API.');
+    }
+    setIsLoading(false);
+  };
+
+  // 2. Chỉ dùng MỘT useEffect duy nhất khi khởi động App
+  useEffect(() => {
+    // Khôi phục phiên đăng nhập (nếu có)
+    const savedUser = localStorage.getItem('current_user');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+    // Gọi hàm fetch dữ liệu
+    fetchData(); 
   }, []);
 
   // ============================================================================
@@ -207,18 +216,46 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     const hashedInputPassword = await hashSHA256(loginForm.password.trim());
-    const user = systemUsers.find(u => String(u.username).trim() === loginForm.username.trim() && String(u.password).trim() === hashedInputPassword);
+    // Gọi API login lên Server
+    const res = await callApi({ 
+      action: 'login', 
+      username: loginForm.username.trim(), 
+      password: hashedInputPassword 
+    }, setIsSyncing);
     
-    if (user) {
-      const group = userGroups.find(g => g.id === user.groupId);
-      setCurrentUser({ ...user, permissions: group ? group.permissions : {} });
-      setShowLoginModal(false); setLoginError('');
-      if (group?.permissions?.dashboard?.view) setActiveTab('dashboard');
-    } else setLoginError('Sai tên đăng nhập hoặc mật khẩu!');
+    if (res && res.status === 'success') {
+      // Lưu Token và User Info
+      localStorage.setItem('auth_token', res.token);
+      localStorage.setItem('current_user', JSON.stringify(res.user));
+      setCurrentUser(res.user);
+      
+      setShowLoginModal(false); 
+      setLoginError('');
+      if (res.user?.permissions?.dashboard?.view) setActiveTab('dashboard');
+      
+      // Quan trọng: Gọi lại fetchData để tải toàn bộ data ẩn (Servers, VIPs...)
+      fetchData(); 
+    } else {
+      setLoginError(res?.message || 'Sai tên đăng nhập hoặc mật khẩu!');
+    }
   };
 
-  const handleLogout = () => { setCurrentUser(null); setActiveTab('appStore'); setLoginForm({ username: '', password: '' }); };
-
+  const handleLogout = () => { 
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('current_user');
+    setCurrentUser(null); 
+    setActiveTab('appStore'); 
+    setLoginForm({ username: '', password: '' }); 
+    // Clear TẤT CẢ dữ liệu bảo mật khỏi state, bao gồm cả User và Group
+    setServers([]); 
+    setVips([]); 
+    setDns([]); 
+    setConnections([]); 
+    setPermissions([]);
+    setSystemUsers([]); // Thêm dòng này
+    setUserGroups([]);  // Thêm dòng này
+  };
+  
   const handleChangePassword = async (e) => {
     e.preventDefault(); setPasswordError(''); setPasswordSuccess('');
     if (passwordForm.newPassword !== passwordForm.confirmPassword) return setPasswordError('Mật khẩu mới và Xác nhận không khớp!');
