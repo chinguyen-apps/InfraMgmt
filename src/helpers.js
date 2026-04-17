@@ -13,7 +13,12 @@ export const callApi = async (payload, setIsSyncing) => {
   if(!API_URL || !API_URL.startsWith("https://script.google.com/")) {
     return { status: 'error', message: `Chưa cấu hình API_URL hợp lệ. Vui lòng kiểm tra lại file src/constants.js. \n\nGiá trị hiện tại đang là:\n${API_URL}` };
   }
-  
+
+  // TỰ ĐỘNG ĐÍNH KÈM TOKEN NẾU CÓ
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    payload.token = token;
+  }
   setIsSyncing(true);
   try {
     const res = await fetch(API_URL, { redirect: 'follow', method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
