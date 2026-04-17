@@ -14,7 +14,22 @@ export default function AppStore({ isPublic, filteredApps, hasAddPermission, ope
     setCopyToast(true); setTimeout(() => setCopyToast(false), 2000);
   };
 
-  const groupedApps = filteredApps.reduce((acc, app) => {
+  // 1. Sắp xếp ưu tiên: Web (1) -> DB (2) -> Khác (3), cùng loại thì xếp theo Tên (A-Z)
+  const sortedApps = [...filteredApps].sort((a, b) => {
+    const getWeight = (type) => {
+      const t = String(type || '').toLowerCase();
+      return t === 'web' ? 1 : t === 'db' ? 2 : 3;
+    };
+    
+    const weightA = getWeight(a.type);
+    const weightB = getWeight(b.type);
+    
+    if (weightA !== weightB) return weightA - weightB;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  // 2. Nhóm các app đã được sắp xếp (Lưu ý: Dùng sortedApps.reduce thay vì filteredApps.reduce)
+  const groupedApps = sortedApps.reduce((acc, app) => {
     if (!acc[app.unit]) acc[app.unit] = {};
     if (!acc[app.unit][app.env]) acc[app.unit][app.env] = [];
     acc[app.unit][app.env].push(app);
