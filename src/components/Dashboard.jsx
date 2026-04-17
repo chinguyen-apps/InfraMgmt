@@ -49,6 +49,17 @@ const GlobalStatCard = ({ title, value, icon: Icon, colorClass }) => (
 const UnitSection = ({ unitName, data }) => {
   const { servers, connections, permissions, vips, dns, apps, dbs } = data;
 
+  // TỰ ĐỘNG NHÓM VÀ ĐẾM SỐ LƯỢNG THEO MÔI TRƯỜNG
+  const envCounts = useMemo(() => {
+    if (!servers) return {};
+    return servers.reduce((acc, server) => {
+      // Lấy tên môi trường, nếu không có gán là 'KHÁC', và viết hoa để đồng bộ
+      const env = String(server?.env || 'KHÁC').toUpperCase().trim();
+      acc[env] = (acc[env] || 0) + 1;
+      return acc;
+    }, {});
+  }, [servers]);
+  
   return (
     <div style={{ backgroundColor: BG_CONTAINER || '#ffffff' }} className="mt-6 rounded-2xl border border-gray-100 p-6 shadow-sm">
       {/* Header của Đơn vị */}
@@ -70,12 +81,54 @@ const UnitSection = ({ unitName, data }) => {
                <span className="text-2xl font-bold text-[#1a5f4f]">{servers?.length || 0}</span>
              </div>
              
-             {/* Thống kê môi trường */}
-             <div className="grid grid-cols-4 gap-2 text-center text-xs mb-4">
-                <div className="bg-white rounded border border-gray-100 p-2"><div className="text-gray-400 mb-1">DEV</div><div className="font-semibold text-gray-700">{countEnv(servers, 'dev')}</div></div>
-                <div className="bg-white rounded border border-gray-100 p-2"><div className="text-gray-400 mb-1">SIT</div><div className="font-semibold text-gray-700">{countEnv(servers, 'sit')}</div></div>
-                <div className="bg-white rounded border border-gray-100 p-2"><div className="text-gray-400 mb-1">UAT</div><div className="font-semibold text-amber-600">{countEnv(servers, 'uat')}</div></div>
-                <div className="bg-emerald-50 rounded border border-emerald-100 p-2"><div className="text-emerald-600 mb-1">PROD</div><div className="font-semibold text-emerald-700">{countEnv(servers, 'prod')}</div></div>
+             {/* Thống kê môi trường (Tự động scale theo dữ liệu thực tế) */}
+             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-center text-xs mb-4">
+                {Object.keys(envCounts).length > 0 ? (
+                  Object.entries(envCounts)
+                    // (Tùy chọn) Sắp xếp thứ tự hiển thị: Ưu tiên DEV -> SIT -> UAT -> PROD, các MT khác xếp sau
+                    .sort(([envA], [envB]) => {
+                      const order = { 'DEV': 1, 'SIT': 2, 'UAT': 3, 'PROD': 4 };
+                      return (order[envA] || 99) - (order[envB] || 99);
+                    })
+                    .map(([env, count]) => {
+                      // Định dạng màu sắc nhận diện tự động dựa trên tên
+                      const isProd = env.includes('PROD');
+                      const isUat = env.includes('UAT');
+                      const isSit = env.includes('SIT');
+
+                      let boxClass = "bg-white border-gray-100";
+                      let titleClass = "text-gray-400";
+                      let countClass = "text-gray-700";
+
+                      // Đổ màu theo như hình ảnh bạn đính kèm
+                      if (isProd) {
+                        boxClass = "bg-emerald-50 border-emerald-100";
+                        titleClass = "text-emerald-600";
+                        countClass = "text-emerald-700";
+                      } else if (isUat) {
+                        titleClass = "text-amber-500";
+                        countClass = "text-amber-600";
+                      } else if (isSit) {
+                        titleClass = "text-blue-400";
+                        countClass = "text-blue-600";
+                      }
+
+                      return (
+                        <div key={env} className={`rounded-lg border p-3 shadow-sm ${boxClass}`}>
+                          <div className={`mb-1 font-medium truncate px-1 uppercase ${titleClass}`} title={env}>
+                            {env}
+                          </div>
+                          <div className={`font-bold text-lg ${countClass}`}>
+                            {count}
+                          </div>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="col-span-full text-gray-400 py-3 bg-gray-50 rounded-lg border border-gray-100 border-dashed">
+                    Chưa có dữ liệu máy chủ
+                  </div>
+                )}
              </div>
              
              {/* Mạng / Cân bằng tải */}
