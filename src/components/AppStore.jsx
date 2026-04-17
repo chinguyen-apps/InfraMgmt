@@ -72,9 +72,21 @@ export default function AppStore({ isPublic, filteredApps, hasAddPermission, ope
                             </div>
                           )}
 
-                          <div className="w-14 h-14 bg-gradient-to-tr from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center text-white mb-4 shadow-md"><AppWindow className="w-6 h-6" /></div>
+                          {/* Sửa icon và màu động tuỳ vào Type */}
+                          <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white mb-4 shadow-md ${app.type === 'DB' ? 'bg-gradient-to-tr from-amber-500 to-orange-600' : 'bg-gradient-to-tr from-emerald-500 to-teal-600'}`}>
+                            {app.type === 'DB' ? <Database className="w-6 h-6" /> : <AppWindow className="w-6 h-6" />}
+                          </div>
+                          
                           <h3 className="font-bold text-gray-800 text-base mb-1">{app.name}</h3>
-                          <p className="text-xs text-gray-500 line-clamp-2 h-8">{app.desc}</p>
+                          
+                          {/* Hiển thị Badge Type phân biệt rõ Web/DB */}
+                          {app.type && (
+                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full mb-2 ${app.type === 'DB' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              APP {app.type}
+                            </span>
+                          )}
+                          <p className="text-xs text-gray-500 line-clamp-2 h-8 mt-1">{app.desc}</p>
+                          
                         </div>
                       ))}
                     </div>
@@ -92,8 +104,17 @@ export default function AppStore({ isPublic, filteredApps, hasAddPermission, ope
           <div style={{ backgroundColor: BG_CONTAINER }} className="rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative animate-fade-in">
             <button onClick={() => setSelectedApp(null)} className="absolute top-4 right-4 text-gray-400 hover:bg-gray-100 rounded-full p-1"><X className="w-5 h-5"/></button>
             <div className="p-6 text-center border-b bg-slate-50/50">
-              <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-md"><AppWindow className="w-8 h-8" /></div>
-              <h3 className="text-xl font-bold">{selectedApp.name}</h3>
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-md ${selectedApp.type === 'DB' ? 'bg-gradient-to-tr from-amber-500 to-orange-600' : 'bg-gradient-to-tr from-emerald-500 to-teal-600'}`}>
+                 {selectedApp.type === 'DB' ? <Database className="w-8 h-8" /> : <AppWindow className="w-8 h-8" />}
+              </div>
+              <h3 className="text-xl font-bold flex justify-center items-center gap-2">
+                {selectedApp.name}
+                {selectedApp.type && (
+                  <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${selectedApp.type === 'DB' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {selectedApp.type}
+                  </span>
+                )}
+              </h3>
               <p className="text-sm text-gray-500 mt-1">{selectedApp.desc}</p>
             </div>
             <div className="p-6 space-y-5">
