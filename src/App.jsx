@@ -259,8 +259,8 @@ export default function App() {
     setModalType(type); setFormData(type === 'systemUser' ? { ...item, password: '' } : { ...item }); setInputMode('form'); setShowModal(true);
   };
 
-  const handleDeleteSelected = async (type, ids) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${ids.length} dòng dữ liệu?`)) return;
+  const handleDeleteSelected = async (type, ids, skipConfirm = false) => {
+    if (!skipConfirm && !window.confirm(`Bạn có chắc chắn muốn xóa ${ids.length} dòng dữ liệu?`)) return;
     const updateLocal = (list, setList) => setList(list.filter(i => !ids.includes(i.id)));
     if (type === 'server') updateLocal(servers, setServers); else if (type === 'vip') updateLocal(vips, setVips); else if (type === 'dns') updateLocal(dns, setDns);
     else if (type === 'connection') updateLocal(connections, setConnections); else if (type === 'permission') updateLocal(permissions, setPermissions);
