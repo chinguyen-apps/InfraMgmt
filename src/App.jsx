@@ -469,8 +469,7 @@ export default function App() {
   };
 
   if (isLoading) return <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" /><p className="font-medium">Đang tải...</p></div>;
-  if (apiError) return <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50"><div className="bg-white p-8 rounded-2xl shadow-xl max-w-2xl text-center border-t-4 border-red-500"><AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" /><h1 className="text-2xl font-bold mb-2">Lỗi Kết nối Backend</h1><div className="bg-red-50 text-red-800 p-4 rounded-lg font-mono text-sm text-left mb-6">{apiError}</div><button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-600 text-white rounded-lg">Thử lại</button></div></div>;
-
+  
   // --- MÀN HÌNH KHÁCH (CHƯA ĐĂNG NHẬP) ---
   if (!currentUser) {
     return (
