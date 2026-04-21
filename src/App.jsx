@@ -536,7 +536,70 @@ export default function App() {
 
         {/* MODAL ĐĂNG NHẬP GIỮ NGUYÊN */}
         {showLoginModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative"><button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-gray-400 hover:bg-gray-100 rounded-full p-1.5"><X className="w-5 h-5"/></button><div className="text-center mb-6"><div style={{ backgroundColor: HEADER_COLOR }} className="w-16 h-16 rounded-full flex items-center justify-center text-white mx-auto mb-4 shadow-lg"><KeyRound className="w-8 h-8"/></div><h2 className="text-2xl font-bold">Đăng nhập</h2></div><form onSubmit={handleLogin} className="space-y-4">{loginError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{loginError}</div>}<div><label className="block text-sm font-medium mb-1">Tài khoản</label><input required value={loginForm.username} onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} className="w-full border rounded-lg p-3 focus:ring-2 outline-none" type="text" autoComplete="username" /></div><div><label className="block text-sm font-medium mb-1">Mật khẩu</label><input required value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} className="w-full border rounded-lg p-3 focus:ring-2 outline-none" type="password" autoComplete="current-password" /></div><button type="submit" style={{ backgroundColor: HEADER_COLOR }} className="w-full text-white rounded-lg p-3 font-bold">Đăng nhập</button></form></div></div>
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+              <button 
+                onClick={() => !isSyncing && setShowLoginModal(false)} 
+                className="absolute top-4 right-4 text-gray-400 hover:bg-gray-100 rounded-full p-1.5"
+                disabled={isSyncing}
+              >
+                <X className="w-5 h-5"/>
+              </button>
+              
+              <div className="text-center mb-6">
+                <div style={{ backgroundColor: HEADER_COLOR }} className="w-16 h-16 rounded-full flex items-center justify-center text-white mx-auto mb-4 shadow-lg">
+                  <KeyRound className="w-8 h-8"/>
+                </div>
+                <h2 className="text-2xl font-bold">Đăng nhập</h2>
+              </div>
+              
+              <form onSubmit={handleLogin} className="space-y-4">
+                {loginError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{loginError}</div>}
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Tài khoản</label>
+                  <input 
+                    required 
+                    disabled={isSyncing}
+                    value={loginForm.username} 
+                    onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} 
+                    className="w-full border rounded-lg p-3 focus:ring-2 outline-none disabled:bg-gray-100 disabled:text-gray-500" 
+                    type="text" 
+                    autoComplete="username" 
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Mật khẩu</label>
+                  <input 
+                    required 
+                    disabled={isSyncing}
+                    value={loginForm.password} 
+                    onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} 
+                    className="w-full border rounded-lg p-3 focus:ring-2 outline-none disabled:bg-gray-100 disabled:text-gray-500" 
+                    type="password" 
+                    autoComplete="current-password" 
+                  />
+                </div>
+                
+                <button 
+                  type="submit" 
+                  disabled={isSyncing}
+                  style={{ backgroundColor: isSyncing ? '#9ca3af' : HEADER_COLOR }} 
+                  className={`w-full text-white rounded-lg p-3 font-bold flex justify-center items-center gap-2 transition-all ${isSyncing ? 'cursor-not-allowed' : 'hover:opacity-90 shadow-md'}`}
+                >
+                  {isSyncing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Đang xử lý...
+                    </>
+                  ) : (
+                    'Đăng nhập'
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     );
