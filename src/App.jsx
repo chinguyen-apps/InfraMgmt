@@ -140,7 +140,7 @@ export default function App() {
     }
 
     // 2. CHẠY NGẦM: Gọi API lấy dữ liệu mới mẻ nhất (3-4s)
-    const res = await callApi({ action: 'read' }, setIsSyncing);
+    const res = await callApi({ action: 'read' });
     if (res && res.status === 'success') {
       applyDataToStates(res.data);
       // Lưu lại bản mới nhất vào LocalStorage cho lần sau
