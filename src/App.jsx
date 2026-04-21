@@ -145,6 +145,10 @@ export default function App() {
       applyDataToStates(res.data);
       // Lưu lại bản mới nhất vào LocalStorage cho lần sau
       localStorage.setItem('infra_app_data', JSON.stringify(res.data)); 
+      if (res.user) {
+         setCurrentUser(res.user);
+         localStorage.setItem('current_user', JSON.stringify(res.user));
+      }
     } else if (res && res.status === 'error' && !res.message.includes("Unauthorized")) {
       setApiError(res.message);
     }
