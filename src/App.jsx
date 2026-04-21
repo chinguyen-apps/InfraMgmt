@@ -161,7 +161,7 @@ export default function App() {
     if (!currentUser) return;
 
     let timeoutId;
-    const INACTIVITY_LIMIT = 30 * 60 * 1000; // Đặt thời gian là 30 phút (tính bằng mili-giây)
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // Đặt thời gian là 15 phút (tính bằng mili-giây)
 
     // Hàm reset lại đồng hồ mỗi khi có tương tác
     const resetTimer = () => {
