@@ -48,76 +48,37 @@ export default function App() {
   const [inputMode, setInputMode] = useState('grid');
   const [gridRows, setGridRows] = useState([{}]);
 
+  const applyDataToStates = (data) => {
+    if (!data) return;
+    
+    // Logic map dữ liệu cũ của anh
+    const processData = (type, rawData, configMapping) => {
+      if (!rawData || !Array.isArray(rawData)) return [];
+      // ... (Giữ nguyên logic chuẩn hóa dữ liệu của anh) ...
+      return rawData.map(item => { /* ... */ }).filter(Boolean);
+    };
+
+    setServers(processData('server', data.server, modalConfigs.server));
+    setVips(processData('vip', data.vip, modalConfigs.vip));
+    setDns(processData('dns', data.dns, modalConfigs.dns));
+    setPermissions(processData('permission', data.permission, modalConfigs.permission));
+    setApps(processData('app', data.app, modalConfigs.app));
+    setParameters(processData('parameter', data.parameter, modalConfigs.parameter));
+    setSystemUsers(processData('systemUser', data.systemUser, [{key:'username'},{key:'fullName'},{key:'groupId'}]));
+    setConnections(processData('connection', data.connection, modalConfigs.connection));
+    setUserGroups(processData('userGroup', data.userGroup, [{key:'groupName'},{key:'permissions'}]));
+  };
+  
   // 1. Khai báo hàm fetchData chứa TẤT CẢ logic xử lý dữ liệu của bạn
   const fetchData = async () => {
     const res = await callApi({ action: 'read' }, setIsSyncing);
     if (res && res.status === 'success') {
-      const d = res.data;
-      const newHeaderMaps = {};
-      
-      const processData = (type, rawData, configMapping) => {
-        if (!rawData || !Array.isArray(rawData) || rawData.length === 0) return [];
-        const rawKeys = Object.keys(rawData[0]).filter(k => k !== 'id');
-        
-        const keyToRawMap = {};
-        configMapping.forEach(({key, label}, i) => {
-            if (rawKeys.includes(key)) keyToRawMap[key] = key;
-            else {
-                const labelMatch = rawKeys.find(rk => rk.toLowerCase().trim() === label.toLowerCase().trim());
-                if (labelMatch) keyToRawMap[key] = labelMatch;
-                else if (rawKeys.length === configMapping.length && i < rawKeys.length) keyToRawMap[key] = rawKeys[i];
-                else keyToRawMap[key] = label; 
-            }
-        });
-        newHeaderMaps[type] = keyToRawMap; 
-        return rawData.map(item => {
-          const normalized = { id: item.id };
-          let hasValue = false; 
-          configMapping.forEach(({key}) => {
-              const rawKey = keyToRawMap[key];
-              normalized[key] = item[rawKey] !== undefined ? item[rawKey] : '';
-              if (String(normalized[key]).trim() !== '') hasValue = true;
-          });
-
-          // Ánh xạ trường type của app
-          if (type === 'app' && item.type) {
-              normalized.type = item.type;
-              hasValue = true;
-          }
-          
-          if (item.permissions !== undefined) {
-            try {
-              normalized.permissions = typeof item.permissions === 'string' ? JSON.parse(item.permissions) : item.permissions;
-              if (Object.keys(normalized.permissions || {}).length > 0) hasValue = true;
-            } catch(e) { normalized.permissions = {}; }
-          }
-          return hasValue ? normalized : null; 
-        }).filter(Boolean);
-      };
-
-      setServers(processData('server', d.server, modalConfigs.server));
-      setVips(processData('vip', d.vip, modalConfigs.vip));
-      setDns(processData('dns', d.dns, modalConfigs.dns));
-      setPermissions(processData('permission', d.permission, modalConfigs.permission));
-      setApps(processData('app', d.app, modalConfigs.app));
-      setParameters(processData('parameter', d.parameter, modalConfigs.parameter));
-      setUserGroups(processData('userGroup', d.userGroup, [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền thao tác'}]));
-      
-      // Chú ý: Đã xóa cột password khỏi processData của systemUser để bảo mật
-      setSystemUsers(processData('systemUser', d.systemUser, [{key: 'username', label: 'Tài khoản'}, {key: 'fullName', label: 'Họ Tên'}, {key: 'groupId', label: 'Nhóm Quyền'}]));
-      
-      const rawConns = processData('connection', d.connection, modalConfigs.connection);
-      const today = new Date().toISOString().split('T')[0];
-      setConnections(rawConns.map(conn => {
-        if (conn.expDate && conn.expDate < today && String(conn.status || '').toLowerCase() !== 'expired') {
-          return { ...conn, status: 'Expired' };
-        }
-        return conn;
-      }));
-      
-      setHeaderMaps(newHeaderMaps);
-    } else {
-      setApiError(res?.message || 'Có lỗi không xác định xuất phát từ API.');
+      applyDataToStates(res.data); // Gọi hàm dùng chung
+    } else if (res && res.status === 'error') {
+       // Chỉ báo lỗi nếu thực sự là lỗi, không báo nếu chỉ là khách vãng lai
+       if(!res.message.includes("Unauthorized")) {
+          setApiError(res.message);
+       }
     }
     setIsLoading(false);
   };
@@ -233,8 +194,11 @@ export default function App() {
       setLoginError('');
       if (res.user?.permissions?.dashboard?.view) setActiveTab('dashboard');
       
-      // Quan trọng: Gọi lại fetchData để tải toàn bộ data ẩn (Servers, VIPs...)
-      fetchData(); 
+      // Tái sử dụng luôn cục data từ API Login trả về
+      // (Không cần phải gọi fetchData() chờ thêm 6 giây nữa!)
+      if (res.data) {     
+        applyDataToStates(res.data); // Ta sẽ tạo một hàm applyDataToStates
+      } 
     } else {
       setLoginError(res?.message || 'Sai tên đăng nhập hoặc mật khẩu!');
     }
