@@ -51,22 +51,81 @@ export default function App() {
   const applyDataToStates = (data) => {
     if (!data) return;
     
-    // Logic map dữ liệu cũ của anh
+    const newHeaderMaps = {}; // Tạo bộ từ điển mới
+
+    // Hàm chuẩn hóa thông minh: Tự động map Tiếng Việt <-> Tiếng Anh
     const processData = (type, rawData, configMapping) => {
       if (!rawData || !Array.isArray(rawData)) return [];
-      // ... (Giữ nguyên logic chuẩn hóa dữ liệu của anh) ...
-      return rawData.map(item => { /* ... */ }).filter(Boolean);
+      
+      // 1. Tự động nội suy Header Map từ dòng dữ liệu đầu tiên và file Config
+      const mapping = {};
+      if (rawData.length > 0 && configMapping) {
+         const rawKeys = Object.keys(rawData[0]);
+         configMapping.forEach(col => {
+            // Nếu data trả về Tiếng Anh (chuẩn gốc) -> Map 1:1
+            if (rawKeys.includes(col.key)) {
+               mapping[col.key] = col.key;
+            } 
+            // Nếu data trả về Tiếng Việt (từ Google Sheet) -> Map Label thành Key
+            else if (rawKeys.includes(col.label)) {
+               mapping[col.label] = col.key;
+            }
+         });
+      }
+
+      // 2. Lưu lại từ điển ngược (Tiếng Anh -> Tiếng Việt) để dùng cho hàm getRawItemForApi
+      // Giúp lúc anh bấm "Thêm mới/Lưu", nó sẽ gửi đúng cột Tiếng Việt lên Google Sheet
+      const reverseMap = {};
+      Object.entries(mapping).forEach(([raw, eng]) => {
+          reverseMap[eng] = raw;
+      });
+      newHeaderMaps[type] = reverseMap;
+
+      // 3. Tiến hành phiên dịch và chuyển đổi dữ liệu
+      return rawData.map(item => {
+        const normalizedItem = { id: item.id, type: item.type }; // Luôn giữ ID và Type
+        
+        Object.keys(item).forEach(rawKey => {
+          const englishKey = mapping[rawKey];
+          if (englishKey) {
+            normalizedItem[englishKey] = item[rawKey];
+          } else {
+            normalizedItem[rawKey] = item[rawKey]; // Giữ nguyên các trường không có trong config
+          }
+        });
+
+        // Parse JSON đặc biệt cho mảng quyền
+        if (type === 'userGroup' && normalizedItem.permissions) {
+            try { 
+              normalizedItem.permissions = typeof normalizedItem.permissions === 'string' 
+                ? JSON.parse(normalizedItem.permissions) 
+                : normalizedItem.permissions; 
+            } catch(e) {}
+        }
+        return normalizedItem;
+      }).filter(Boolean);
     };
 
+    // Áp dụng dữ liệu vào các State chính
     setServers(processData('server', data.server, modalConfigs.server));
     setVips(processData('vip', data.vip, modalConfigs.vip));
     setDns(processData('dns', data.dns, modalConfigs.dns));
     setPermissions(processData('permission', data.permission, modalConfigs.permission));
     setApps(processData('app', data.app, modalConfigs.app));
-    setParameters(processData('parameter', data.parameter, modalConfigs.parameter));
-    setSystemUsers(processData('systemUser', data.systemUser, [{key:'username'},{key:'fullName'},{key:'groupId'}]));
     setConnections(processData('connection', data.connection, modalConfigs.connection));
-    setUserGroups(processData('userGroup', data.userGroup, [{key:'groupName'},{key:'permissions'}]));
+
+    // Fix map cứng cho các bảng hệ thống (đề phòng config của anh chưa có mảng này)
+    const paramConfig = [{key: 'code', label: 'Tên tham số'}, {key: 'type', label: 'Loại'}, {key: 'value', label: 'Giá trị'}, {key: 'desc', label: 'Mô tả'}];
+    setParameters(processData('parameter', data.parameter, modalConfigs.parameter || paramConfig));
+    
+    const sysUserConfig = [{key: 'username', label: 'Tên đăng nhập'}, {key: 'fullName', label: 'Họ và Tên'}, {key: 'groupId', label: 'Nhóm quyền'}];
+    setSystemUsers(processData('systemUser', data.systemUser, sysUserConfig));
+    
+    const userGrpConfig = [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền'}];
+    setUserGroups(processData('userGroup', data.userGroup, userGrpConfig));
+
+    // Cập nhật State HeaderMaps để hệ thống CRUD gọi tự động
+    setHeaderMaps(newHeaderMaps); 
   };
   
   // 1. Khai báo hàm fetchData chứa TẤT CẢ logic xử lý dữ liệu của bạn
