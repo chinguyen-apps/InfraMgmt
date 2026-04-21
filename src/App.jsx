@@ -154,6 +154,47 @@ export default function App() {
   }, []);
 
   // ============================================================================
+  // TỰ ĐỘNG LOGOUT KHI TREO MÁY (INACTIVITY TIMEOUT)
+  // ============================================================================
+  useEffect(() => {
+    // Chỉ kích hoạt đếm giờ khi người dùng ĐÃ ĐĂNG NHẬP
+    if (!currentUser) return;
+
+    let timeoutId;
+    const INACTIVITY_LIMIT = 30 * 60 * 1000; // Đặt thời gian là 30 phút (tính bằng mili-giây)
+
+    // Hàm reset lại đồng hồ mỗi khi có tương tác
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      timeoutId = setTimeout(() => {
+        // Hết giờ -> Tự động đăng xuất
+        alert("Phiên đăng nhập đã hết hạn do không có thao tác trong thời gian dài. Vui lòng đăng nhập lại.");
+        handleLogout(); // Hàm handleLogout của anh đã có sẵn logic xóa token & state
+      }, INACTIVITY_LIMIT);
+    };
+
+    // Các sự kiện được tính là "Có tương tác"
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    
+    // Gắn "tai nghe" sự kiện vào toàn bộ trang web
+    activityEvents.forEach(event => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    // Khởi động đồng hồ đếm ngược ngay lập tức
+    resetTimer();
+
+    // Dọn dẹp bộ nhớ (Cleanup) khi người dùng chủ động đăng xuất hoặc tắt component
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [currentUser]); // Trigger lại effect này nếu state currentUser thay đổi
+
+  // ============================================================================
   // TỐI ƯU HÓA HIỆU NĂNG (SENIOR LEVEL PERFORMANCE OPTIMIZATION)
   // ============================================================================
 
