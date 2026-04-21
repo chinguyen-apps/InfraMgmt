@@ -130,15 +130,26 @@ export default function App() {
   
   // 1. Khai báo hàm fetchData chứa TẤT CẢ logic xử lý dữ liệu của bạn
   const fetchData = async () => {
+    // 1. NGAY LẬP TỨC: Thử lấy dữ liệu cũ từ LocalStorage hiển thị trước (0.1s)
+    const cachedLocalData = localStorage.getItem('infra_app_data');
+    if (cachedLocalData) {
+        try {
+            applyDataToStates(JSON.parse(cachedLocalData));
+            setIsLoading(false); // Tắt loading full-screen ngay lập tức!
+        } catch(e) {}
+    }
+
+    // 2. CHẠY NGẦM: Gọi API lấy dữ liệu mới mẻ nhất (3-4s)
     const res = await callApi({ action: 'read' }, setIsSyncing);
     if (res && res.status === 'success') {
-      applyDataToStates(res.data); // Gọi hàm dùng chung
-    } else if (res && res.status === 'error') {
-       // Chỉ báo lỗi nếu thực sự là lỗi, không báo nếu chỉ là khách vãng lai
-       if(!res.message.includes("Unauthorized")) {
-          setApiError(res.message);
-       }
+      applyDataToStates(res.data);
+      // Lưu lại bản mới nhất vào LocalStorage cho lần sau
+      localStorage.setItem('infra_app_data', JSON.stringify(res.data)); 
+    } else if (res && res.status === 'error' && !res.message.includes("Unauthorized")) {
+      setApiError(res.message);
     }
+    
+    // Đảm bảo tắt loading dù có lỗi hay không (đề phòng lần đầu chưa có cache)
     setIsLoading(false);
   };
 
@@ -297,7 +308,9 @@ export default function App() {
       // Tái sử dụng luôn cục data từ API Login trả về
       // (Không cần phải gọi fetchData() chờ thêm 6 giây nữa!)
       if (res.data) {     
-        applyDataToStates(res.data); // Ta sẽ tạo một hàm applyDataToStates
+        applyDataToStates(res.data); 
+        // LƯU DỮ LIỆU ĐĂNG NHẬP VÀO LOCALSTORAGE
+        localStorage.setItem('infra_app_data', JSON.stringify(res.data));
       } 
     } else {
       setLoginError(res?.message || 'Sai tên đăng nhập hoặc mật khẩu!');
@@ -307,6 +320,7 @@ export default function App() {
   const handleLogout = () => { 
     localStorage.removeItem('auth_token');
     localStorage.removeItem('current_user');
+    localStorage.removeItem('infra_app_data'); // XÓA BẢN SAO DỮ LIỆU KHI ĐĂNG XUẤT
     setCurrentUser(null); 
     setActiveTab('appStore'); 
     setLoginForm({ username: '', password: '' }); 
