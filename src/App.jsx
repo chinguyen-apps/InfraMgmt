@@ -130,31 +130,43 @@ export default function App() {
   
   // 1. Khai báo hàm fetchData chứa TẤT CẢ logic xử lý dữ liệu của bạn
   const fetchData = async () => {
-    // 1. NGAY LẬP TỨC: Thử lấy dữ liệu cũ từ LocalStorage hiển thị trước (0.1s)
+    // 1. NGAY LẬP TỨC: Thử lấy dữ liệu cũ từ LocalStorage hiển thị trước
     const cachedLocalData = localStorage.getItem('infra_app_data');
     if (cachedLocalData) {
         try {
             applyDataToStates(JSON.parse(cachedLocalData));
-            setIsLoading(false); // Tắt loading full-screen ngay lập tức!
+            setIsLoading(false); // Tắt loading full-screen ngay lập tức nếu có cache!
         } catch(e) {}
     }
 
-    // 2. CHẠY NGẦM: Gọi API lấy dữ liệu mới mẻ nhất (3-4s)
-    const res = await callApi({ action: 'read' });
-    if (res && res.status === 'success') {
-      applyDataToStates(res.data);
-      // Lưu lại bản mới nhất vào LocalStorage cho lần sau
-      localStorage.setItem('infra_app_data', JSON.stringify(res.data)); 
-      if (res.user) {
-         setCurrentUser(res.user);
-         localStorage.setItem('current_user', JSON.stringify(res.user));
-      }
-    } else if (res && res.status === 'error' && !res.message.includes("Unauthorized")) {
-      setApiError(res.message);
+    // 2. CHẠY NGẦM: Gọi API lấy dữ liệu mới
+    try {
+        // BÍ QUYẾT TRÁNH LỖI CRASH Ở ĐÂY: Truyền một hàm rỗng () => {} vào tham số thứ 2
+        // Nó giúp hàm callApi không bị crash, mà cũng không bật cái kính mờ ở giao diện lên!
+        const res = await callApi({ action: 'read' }, () => {}); 
+        
+        if (res && res.status === 'success') {
+          applyDataToStates(res.data);
+          // Lưu lại bản mới nhất vào LocalStorage cho lần sau
+          localStorage.setItem('infra_app_data', JSON.stringify(res.data)); 
+          if (res.user) {
+             setCurrentUser(res.user);
+             localStorage.setItem('current_user', JSON.stringify(res.user));
+          }
+        } else if (res && res.status === 'error') {
+           if (res.message && !String(res.message).includes("Unauthorized")) {
+              setApiError(res.message);
+           }
+        }
+    } catch (error) {
+        console.error("Lỗi ngầm khi fetch data:", error);
+        // Nếu sập mạng hoặc Worker không phản hồi, vẫn có thông báo
+        setApiError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
+    } finally {
+        // LƯU Ý QUAN TRỌNG NHẤT: Khối finally LUÔN LUÔN CHẠY
+        // Chốt chặn cuối cùng đảm bảo 100% tắt vòng quay Loading, giúp user không bị treo màn hình
+        setIsLoading(false);
     }
-    
-    // Đảm bảo tắt loading dù có lỗi hay không (đề phòng lần đầu chưa có cache)
-    setIsLoading(false);
   };
 
   // 2. Chỉ dùng MỘT useEffect duy nhất khi khởi động App
