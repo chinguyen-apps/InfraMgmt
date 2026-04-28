@@ -286,6 +286,11 @@ export default function App() {
     const rawItem = { id: normalizedItem.id };
     Object.keys(mapping).forEach(key => { rawItem[mapping[key]] = normalizedItem[key]; });
 
+    // --- SỬA ĐOẠN NÀY ĐỂ GIỮ LẠI MẬT KHẨU ---
+    if (type === 'systemUser' && normalizedItem.password) {
+      rawItem.password = normalizedItem.password;
+    }
+
     // --- THÊM ĐOẠN NÀY ĐỂ GỬI TRƯỜNG TYPE LÊN API ---
     if (type === 'app' && normalizedItem.type !== undefined) {
       rawItem.type = normalizedItem.type;
