@@ -26,7 +26,12 @@ const countEnv = (arr, envName) => {
 // --- SUB-COMPONENTS ---
 
 // 1. Thẻ hiển thị thông số Tổng (Big Numbers)
-const GlobalStatCard = ({ title, value, icon: Icon, colorClass }) => (
+const GlobalStatCard = ({ title, value, icon: Icon, colorClass, onClick }) => (
+  <div 
+    onClick={onClick}
+    style={{ backgroundColor: BG_CONTAINER || '#ffffff' }} 
+    className={`relative overflow-hidden rounded-xl border border-gray-100 p-6 shadow-sm transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''}`}
+  >
   <div style={{ backgroundColor: BG_CONTAINER || '#ffffff' }} className="relative overflow-hidden rounded-xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
     <div className="absolute -right-6 -top-6 opacity-5">
       <Icon className="w-32 h-32" />
@@ -42,6 +47,7 @@ const GlobalStatCard = ({ title, value, icon: Icon, colorClass }) => (
         <span className="text-4xl font-black text-gray-800 tracking-tight">{value}</span>
       </div>
     </div>
+  </div>
   </div>
 );
 
@@ -77,8 +83,8 @@ const UnitSection = ({ unitName, data }) => {
   }, [servers]);
   
   return (
-    <div style={{ backgroundColor: BG_CONTAINER || '#ffffff' }} className="mt-6 rounded-2xl border border-gray-100 p-6 shadow-sm">
-      {/* Header của Đơn vị */}
+    <div style={{ backgroundColor: '#ffffff' }} className="mt-6 rounded-2xl border border-gray-100 p-6 shadow-sm">
+      {/* Header Đơn vị */}
       <div className="flex items-center mb-6 border-b border-gray-100 pb-4">
         <div className="h-6 w-1.5 bg-[#1a5f4f] rounded-full mr-3"></div>
         <h2 className="text-xl font-bold text-gray-800">{unitName}</h2>
@@ -86,82 +92,59 @@ const UnitSection = ({ unitName, data }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Cột 1: Hạ tầng & Mạng */}
+        {/* CỘT 1: HẠ TẦNG & MẠNG */}
         <div className="space-y-4">
           <h4 className="text-[#1a5f4f] font-semibold flex items-center text-sm uppercase tracking-wider">
-            <Cpu className="w-4 h-4 mr-2" /> Hạ tầng & Cân bằng tải
+            <Cpu className="w-4 h-4 mr-2" /> Hạ tầng & Mạng
           </h4>
           <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-             <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
+             <div 
+               onClick={() => onNavigate('servers', unitName, '')}
+               className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200 cursor-pointer hover:opacity-70"
+             >
                <span className="text-gray-600 font-medium">Tổng Máy chủ</span>
                <span className="text-2xl font-bold text-[#1a5f4f]">{servers?.length || 0}</span>
              </div>
              
-             {/* Thống kê môi trường (Tự động scale theo dữ liệu thực tế) */}
-             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-center text-xs mb-4">
-                {Object.keys(envCounts).length > 0 ? (
-                  Object.entries(envCounts)
-                    // (Tùy chọn) Sắp xếp thứ tự hiển thị: Ưu tiên DEV -> SIT -> UAT -> PROD, các MT khác xếp sau
-                    .sort(([envA], [envB]) => {
-                      const order = { 'DEV': 1, 'SIT': 2, 'UAT': 3, 'PROD': 4 };
-                      return (order[envA] || 99) - (order[envB] || 99);
-                    })
-                    .map(([env, count]) => {
-                      // Định dạng màu sắc nhận diện tự động dựa trên tên
-                      const isProd = env.includes('PROD');
-                      const isUat = env.includes('UAT');
-                      const isSit = env.includes('SIT');
-
-                      let boxClass = "bg-white border-gray-100";
-                      let titleClass = "text-gray-400";
-                      let countClass = "text-gray-700";
-
-                      // Đổ màu theo như hình ảnh bạn đính kèm
-                      if (isProd) {
-                        boxClass = "bg-emerald-50 border-emerald-100";
-                        titleClass = "text-emerald-600";
-                        countClass = "text-emerald-700";
-                      } else if (isUat) {
-                        titleClass = "text-amber-500";
-                        countClass = "text-amber-600";
-                      } else if (isSit) {
-                        titleClass = "text-blue-400";
-                        countClass = "text-blue-600";
-                      }
-
-                      return (
-                        <div key={env} className={`rounded-lg border p-3 shadow-sm ${boxClass}`}>
-                          <div className={`mb-1 font-medium truncate px-1 uppercase ${titleClass}`} title={env}>
-                            {env}
-                          </div>
-                          <div className={`font-bold text-lg ${countClass}`}>
-                            {count}
-                          </div>
-                        </div>
-                      );
-                    })
-                ) : (
-                  <div className="col-span-full text-gray-400 py-3 bg-gray-50 rounded-lg border border-gray-100 border-dashed">
-                    Chưa có dữ liệu máy chủ
-                  </div>
-                )}
+             {/* Danh sách môi trường máy chủ */}
+             <div className="grid grid-cols-2 gap-3 text-center text-xs mb-4">
+                {Object.entries(envCounts).sort().map(([env, count]) => {
+                  const isProd = env.includes('PROD');
+                  const boxClass = isProd ? "bg-emerald-50 border-emerald-100 text-emerald-700" : "bg-white border-gray-100 text-gray-700";
+                  return (
+                    <div 
+                      key={env} 
+                      onClick={() => onNavigate('servers', unitName, env)}
+                      className={`rounded-lg border p-3 shadow-sm cursor-pointer hover:border-[#1a5f4f] transition-all ${boxClass}`}
+                    >
+                      <div className="mb-1 font-medium uppercase opacity-70">{env}</div>
+                      <div className="font-bold text-lg">{count}</div>
+                    </div>
+                  );
+                })}
              </div>
              
-             {/* Mạng / Cân bằng tải */}
+             {/* VIPs & DNS */}
              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center justify-between bg-white border border-gray-100 p-2.5 rounded-lg shadow-sm">
-                  <span className="text-gray-500 text-sm">Virtual IPs</span>
+                <div 
+                  onClick={() => onNavigate('vips', unitName, '')}
+                  className="flex items-center justify-between bg-white border border-gray-100 p-2.5 rounded-lg shadow-sm cursor-pointer hover:border-indigo-400 transition-all"
+                >
+                  <span className="text-gray-500 text-sm">VIPs</span>
                   <span className="text-indigo-600 font-bold">{vips?.length || 0}</span>
                 </div>
-                <div className="flex items-center justify-between bg-white border border-gray-100 p-2.5 rounded-lg shadow-sm">
-                  <span className="text-gray-500 text-sm">DNS Records</span>
+                <div 
+                  onClick={() => onNavigate('dns', unitName, '')}
+                  className="flex items-center justify-between bg-white border border-gray-100 p-2.5 rounded-lg shadow-sm cursor-pointer hover:border-blue-400 transition-all"
+                >
+                  <span className="text-gray-500 text-sm">DNS</span>
                   <span className="text-blue-600 font-bold">{dns?.length || 0}</span>
                 </div>
              </div>
           </div>
         </div>
 
-        {/* Cột 2: Vận hành & Xử lý yêu cầu */}
+        {/* CỘT 2: VẬN HÀNH (KẾT NỐI & CẤP QUYỀN) */}
         <div className="space-y-4">
           <h4 className="text-indigo-600 font-semibold flex items-center text-sm uppercase tracking-wider">
             <Activity className="w-4 h-4 mr-2" /> Xử lý Yêu cầu
@@ -170,34 +153,46 @@ const UnitSection = ({ unitName, data }) => {
             <div className="space-y-5">
               {/* Kết nối */}
               <div>
-                <div className="text-sm font-medium text-gray-700 mb-3 flex items-center"><Network className="w-4 h-4 mr-1 text-gray-400"/> Yêu cầu Kết nối</div>
+                <div className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                  <Network className="w-4 h-4 mr-1 text-gray-400"/> Kết nối
+                </div>
                 <div className="flex gap-3">
-                  <div className="flex-1 bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
-                    {/* SỬA TỪ KHÓA ĐẾM KẾT NỐI ACTIVE */}
-                    <div className="text-2xl font-bold text-emerald-600">{countStatus(connections, ['active', 'hoạt động', 'đã kết nối', 'done', 'hoàn thành'])}</div>
-                    <div className="text-[11px] text-gray-500 uppercase mt-1">Active</div>
+                  <div 
+                    onClick={() => onNavigate('connections', unitName, 'Active')}
+                    className="flex-1 bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm cursor-pointer hover:border-emerald-500 transition-all"
+                  >
+                    <div className="text-2xl font-bold text-emerald-600">{countStatus(connections, ['active'])}</div>
+                    <div className="text-[11px] text-gray-500 uppercase mt-1 tracking-tighter">Active</div>
                   </div>
-                  <div className="flex-1 bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
-                    {/* SỬA TỪ KHÓA ĐẾM KẾT NỐI PROCESSING */}
-                    <div className="text-2xl font-bold text-amber-500">{countStatus(connections, ['in progress', 'open', 'đang xử lý', 'chờ xử lý', 'mới'])}</div>
-                    <div className="text-[11px] text-gray-500 uppercase mt-1">Processing</div>
+                  <div 
+                    onClick={() => onNavigate('connections', unitName, 'In progress')}
+                    className="flex-1 bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm cursor-pointer hover:border-amber-500 transition-all"
+                  >
+                    <div className="text-2xl font-bold text-amber-500">{countStatus(connections, ['in progress', 'open'])}</div>
+                    <div className="text-[11px] text-gray-500 uppercase mt-1 tracking-tighter">Processing</div>
                   </div>
                 </div>
               </div>
               
               {/* Cấp quyền */}
               <div className="pt-4 border-t border-gray-200">
-                <div className="text-sm font-medium text-gray-700 mb-3 flex items-center"><ShieldCheck className="w-4 h-4 mr-1 text-gray-400"/> Cấp quyền / Tài khoản</div>
+                <div className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                  <ShieldCheck className="w-4 h-4 mr-1 text-gray-400"/> Quyền & Tài khoản
+                </div>
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm">
-                    <span className="text-sm text-gray-600">Đã hoàn thành (Done)</span>
-                    {/* SỬA TỪ KHÓA ĐẾM CẤP QUYỀN DONE */}
-                    <span className="text-lg font-bold text-emerald-600">{countStatus(permissions, ['done', 'hoàn thành', 'đã cấp', 'active'])}</span>
+                  <div 
+                    onClick={() => onNavigate('permissions', unitName, 'Done')}
+                    className="flex justify-between items-center bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm cursor-pointer hover:border-emerald-500 transition-all"
+                  >
+                    <span className="text-xs text-gray-600">Đã hoàn thành (Done)</span>
+                    <span className="text-lg font-bold text-emerald-600">{countStatus(permissions, ['done'])}</span>
                   </div>
-                  <div className="flex justify-between items-center bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm">
-                    <span className="text-sm text-gray-600">Đang xử lý (In progress)</span>
-                    {/* SỬA TỪ KHÓA ĐẾM CẤP QUYỀN PROCESSING */}
-                    <span className="text-base font-bold text-amber-500">{countStatus(permissions, ['in progress', 'open', 'đang xử lý', 'chờ xử lý', 'chờ duyệt', 'mới'])}</span>
+                  <div 
+                    onClick={() => onNavigate('permissions', unitName, 'In progress')}
+                    className="flex justify-between items-center bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm cursor-pointer hover:border-amber-500 transition-all"
+                  >
+                    <span className="text-xs text-gray-600">Đang xử lý (Progress)</span>
+                    <span className="text-lg font-bold text-amber-500">{countStatus(permissions, ['in progress', 'open'])}</span>
                   </div>
                 </div>
               </div>
@@ -205,40 +200,43 @@ const UnitSection = ({ unitName, data }) => {
           </div>
         </div>
 
-        {/* Cột 3: Ứng dụng & CSDL */}
+        {/* CỘT 3: KHO ỨNG DỤNG & DỮ LIỆU */}
         <div className="space-y-4">
           <h4 className="text-blue-600 font-semibold flex items-center text-sm uppercase tracking-wider">
             <Globe className="w-4 h-4 mr-2" /> Kho Ứng dụng & Dữ liệu
           </h4>
           <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 h-[calc(100%-2rem)] flex flex-col justify-center gap-3">
             
-            {/* Card Ứng dụng Web */}
-            <div className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
-              <div className="p-2.5 bg-blue-50 rounded-lg mr-4">
-                <Globe className="w-6 h-6 text-blue-500" />
-              </div>
+            {/* Ứng dụng Web */}
+            <div 
+              onClick={() => onNavigate('appStore', unitName, 'Web')}
+              className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm cursor-pointer hover:border-blue-300 transition-all"
+            >
+              <div className="p-2.5 bg-blue-50 rounded-lg mr-4"><Globe className="w-6 h-6 text-blue-500" /></div>
               <div>
                 <div className="text-gray-500 text-xs font-medium">Link Ứng dụng</div>
                 <div className="text-2xl font-bold text-gray-800">{webAppsCount}</div>
               </div>
             </div>
-    
-            {/* Card Cơ sở dữ liệu */}
-            <div className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-purple-200 transition-colors">
-              <div className="p-2.5 bg-purple-50 rounded-lg mr-4">
-                <Database className="w-6 h-6 text-purple-500" />
-              </div>
+
+            {/* Cơ sở dữ liệu */}
+            <div 
+              onClick={() => onNavigate('appStore', unitName, 'DB')}
+              className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm cursor-pointer hover:border-purple-300 transition-all"
+            >
+              <div className="p-2.5 bg-purple-50 rounded-lg mr-4"><Database className="w-6 h-6 text-purple-500" /></div>
               <div>
                 <div className="text-gray-500 text-xs font-medium">Cơ sở dữ liệu</div>
                 <div className="text-2xl font-bold text-gray-800">{dbAppsCount}</div>
               </div>
             </div>
-    
-            {/* Card Khác (Trường hợp type rỗng) */}
-            <div className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-orange-200 transition-colors">
-              <div className="p-2.5 bg-orange-50 rounded-lg mr-4">
-                <Cpu className="w-6 h-6 text-orange-500" />
-              </div>
+
+            {/* Khác (Type rỗng) */}
+            <div 
+              onClick={() => onNavigate('appStore', unitName, ' ')} // Tìm kiếm rỗng
+              className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm cursor-pointer hover:border-orange-300 transition-all"
+            >
+              <div className="p-2.5 bg-orange-50 rounded-lg mr-4"><Cpu className="w-6 h-6 text-orange-500" /></div>
               <div>
                 <div className="text-gray-500 text-xs font-medium">Hệ thống Khác</div>
                 <div className="text-2xl font-bold text-gray-800">{otherAppsCount}</div>
@@ -263,7 +261,8 @@ export default function Dashboard({
   filteredVIPs = [],    // Props mới bổ sung
   filteredDNS = [],     // Props mới bổ sung
   filteredApps = [],    // Props mới bổ sung
-  filteredDBs = []      // Props mới bổ sung
+  filteredDBs = [],      // Props mới bổ sung
+  onNavigate
 }) {
 
   // Gom nhóm danh sách các đơn vị đang có dữ liệu
@@ -312,6 +311,7 @@ export default function Dashboard({
           value={filteredServers.length} 
           icon={Server} 
           colorClass={{ bg: 'bg-[#1a5f4f]/10', text: 'text-[#1a5f4f]' }} 
+          onClick={() => onNavigate('servers', 'All', '')} // Click chuyển sang tab Servers
         />
         
         {/* Thẻ VIPs đứng độc lập */}
@@ -353,6 +353,7 @@ export default function Dashboard({
               key={unit} 
               unitName={unit} 
               data={getUnitData(unit)} 
+              onNavigate={onNavigate} // Truyền xuống UnitSection
             />
           ))
         ) : (
