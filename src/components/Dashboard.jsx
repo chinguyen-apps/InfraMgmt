@@ -32,7 +32,6 @@ const GlobalStatCard = ({ title, value, icon: Icon, colorClass, onClick }) => (
     style={{ backgroundColor: BG_CONTAINER || '#ffffff' }} 
     className={`relative overflow-hidden rounded-xl border border-gray-100 p-6 shadow-sm transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''}`}
   >
-  <div style={{ backgroundColor: BG_CONTAINER || '#ffffff' }} className="relative overflow-hidden rounded-xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
     <div className="absolute -right-6 -top-6 opacity-5">
       <Icon className="w-32 h-32" />
     </div>
@@ -48,11 +47,10 @@ const GlobalStatCard = ({ title, value, icon: Icon, colorClass, onClick }) => (
       </div>
     </div>
   </div>
-  </div>
 );
 
 // 2. Khu vực hiển thị chi tiết cho từng Đơn vị
-const UnitSection = ({ unitName, data }) => {
+const UnitSection = ({ unitName, data, onNavigate }) => {
   const { servers, connections, permissions, vips, dns, apps, dbs } = data;
 
   // --- LOGIC PHÂN LOẠI ỨNG DỤNG ---
@@ -233,7 +231,7 @@ const UnitSection = ({ unitName, data }) => {
 
             {/* Khác (Type rỗng) */}
             <div 
-              onClick={() => onNavigate('appStore', unitName, ' ')} // Tìm kiếm rỗng
+              onClick={() => onNavigate('appStore', unitName, '')} // Tìm kiếm rỗng
               className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm cursor-pointer hover:border-orange-300 transition-all"
             >
               <div className="p-2.5 bg-orange-50 rounded-lg mr-4"><Cpu className="w-6 h-6 text-orange-500" /></div>
