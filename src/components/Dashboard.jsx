@@ -49,9 +49,21 @@ const GlobalStatCard = ({ title, value, icon: Icon, colorClass }) => (
 const UnitSection = ({ unitName, data }) => {
   const { servers, connections, permissions, vips, dns, apps, dbs } = data;
 
-  // --- BỔ SUNG: Tách Web và Database từ mảng apps chung ---
-  const webAppsCount = apps?.filter(a => a.type === 'Web' || (a.webLink && !a.dbString)).length || 0;
-  const dbAppsCount = apps?.filter(a => a.type === 'DB' || a.dbString).length || 0;
+  // --- LOGIC PHÂN LOẠI ỨNG DỤNG ---
+  // 1. Nhóm Web: type chính xác là 'Web'
+  const webAppsCount = useMemo(() => 
+    apps?.filter(a => String(a.type || '').trim() === 'Web').length || 0, 
+  [apps]);
+
+  // 2. Nhóm DB: type chính xác là 'DB'
+  const dbAppsCount = useMemo(() => 
+    apps?.filter(a => String(a.type || '').trim() === 'DB').length || 0, 
+  [apps]);
+
+  // 3. Nhóm Khác: type rỗng (khi có cả 2 link hoặc không có thông tin)
+  const otherAppsCount = useMemo(() => 
+    apps?.filter(a => !a.type || String(a.type).trim() === '').length || 0, 
+  [apps]);
 
   // TỰ ĐỘNG NHÓM VÀ ĐẾM SỐ LƯỢNG THEO MÔI TRƯỜNG
   const envCounts = useMemo(() => {
@@ -198,27 +210,38 @@ const UnitSection = ({ unitName, data }) => {
           <h4 className="text-blue-600 font-semibold flex items-center text-sm uppercase tracking-wider">
             <Globe className="w-4 h-4 mr-2" /> Kho Ứng dụng & Dữ liệu
           </h4>
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 h-[calc(100%-2rem)] flex flex-col justify-center gap-4">
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 h-[calc(100%-2rem)] flex flex-col justify-center gap-3">
             
-            <div className="flex items-center p-5 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
-              <div className="p-3 bg-blue-50 rounded-lg mr-4">
-                <Globe className="w-8 h-8 text-blue-500" />
+            {/* Card Ứng dụng Web */}
+            <div className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
+              <div className="p-2.5 bg-blue-50 rounded-lg mr-4">
+                <Globe className="w-6 h-6 text-blue-500" />
               </div>
               <div>
-                <div className="text-gray-500 text-sm font-medium">Link Ứng dụng</div>
-                {/* HIỂN THỊ SỐ LƯỢNG WEB APPS */}
-                <div className="text-3xl font-bold text-gray-800">{webAppsCount}</div>
+                <div className="text-gray-500 text-xs font-medium">Link Ứng dụng</div>
+                <div className="text-2xl font-bold text-gray-800">{webAppsCount}</div>
               </div>
             </div>
-
-            <div className="flex items-center p-5 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-purple-200 transition-colors">
-              <div className="p-3 bg-purple-50 rounded-lg mr-4">
-                <Database className="w-8 h-8 text-purple-500" />
+    
+            {/* Card Cơ sở dữ liệu */}
+            <div className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-purple-200 transition-colors">
+              <div className="p-2.5 bg-purple-50 rounded-lg mr-4">
+                <Database className="w-6 h-6 text-purple-500" />
               </div>
               <div>
-                <div className="text-gray-500 text-sm font-medium">Cơ sở dữ liệu</div>
-                {/* HIỂN THỊ SỐ LƯỢNG DATABASE */}
-                <div className="text-3xl font-bold text-gray-800">{dbAppsCount}</div>
+                <div className="text-gray-500 text-xs font-medium">Cơ sở dữ liệu</div>
+                <div className="text-2xl font-bold text-gray-800">{dbAppsCount}</div>
+              </div>
+            </div>
+    
+            {/* Card Khác (Trường hợp type rỗng) */}
+            <div className="flex items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-orange-200 transition-colors">
+              <div className="p-2.5 bg-orange-50 rounded-lg mr-4">
+                <Cpu className="w-6 h-6 text-orange-500" />
+              </div>
+              <div>
+                <div className="text-gray-500 text-xs font-medium">Hệ thống Khác</div>
+                <div className="text-2xl font-bold text-gray-800">{otherAppsCount}</div>
               </div>
             </div>
 
