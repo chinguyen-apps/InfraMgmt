@@ -15,7 +15,7 @@ const BG_CONTAINER = '#ffffff';
 // --- UTILITY FUNCTIONS ---
 const countStatus = (arr, statusList) => {
   if (!arr) return 0;
-  return arr.filter(i => statusList.includes(String(i?.status || '').toLowerCase())).length;
+  return arr.filter(i => statusList.includes(String(i?.status || '').trim().toLowerCase())).length;
 };
 
 const countEnv = (arr, envName) => {
@@ -48,6 +48,10 @@ const GlobalStatCard = ({ title, value, icon: Icon, colorClass }) => (
 // 2. Khu vực hiển thị chi tiết cho từng Đơn vị
 const UnitSection = ({ unitName, data }) => {
   const { servers, connections, permissions, vips, dns, apps, dbs } = data;
+
+  // --- BỔ SUNG: Tách Web và Database từ mảng apps chung ---
+  const webAppsCount = apps?.filter(a => a.type === 'Web' || (a.webLink && !a.dbString)).length || 0;
+  const dbAppsCount = apps?.filter(a => a.type === 'DB' || a.dbString).length || 0;
 
   // TỰ ĐỘNG NHÓM VÀ ĐẾM SỐ LƯỢNG THEO MÔI TRƯỜNG
   const envCounts = useMemo(() => {
@@ -157,11 +161,13 @@ const UnitSection = ({ unitName, data }) => {
                 <div className="text-sm font-medium text-gray-700 mb-3 flex items-center"><Network className="w-4 h-4 mr-1 text-gray-400"/> Yêu cầu Kết nối</div>
                 <div className="flex gap-3">
                   <div className="flex-1 bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
-                    <div className="text-2xl font-bold text-emerald-600">{countStatus(connections, ['active'])}</div>
+                    {/* SỬA TỪ KHÓA ĐẾM KẾT NỐI ACTIVE */}
+                    <div className="text-2xl font-bold text-emerald-600">{countStatus(connections, ['active', 'hoạt động', 'đã kết nối', 'done', 'hoàn thành'])}</div>
                     <div className="text-[11px] text-gray-500 uppercase mt-1">Active</div>
                   </div>
                   <div className="flex-1 bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
-                    <div className="text-2xl font-bold text-amber-500">{countStatus(connections, ['in progress', 'open'])}</div>
+                    {/* SỬA TỪ KHÓA ĐẾM KẾT NỐI PROCESSING */}
+                    <div className="text-2xl font-bold text-amber-500">{countStatus(connections, ['in progress', 'open', 'đang xử lý', 'chờ xử lý', 'mới'])}</div>
                     <div className="text-[11px] text-gray-500 uppercase mt-1">Processing</div>
                   </div>
                 </div>
@@ -173,11 +179,13 @@ const UnitSection = ({ unitName, data }) => {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm">
                     <span className="text-sm text-gray-600">Đã hoàn thành (Done)</span>
-                    <span className="text-lg font-bold text-emerald-600">{countStatus(permissions, ['done'])}</span>
+                    {/* SỬA TỪ KHÓA ĐẾM CẤP QUYỀN DONE */}
+                    <span className="text-lg font-bold text-emerald-600">{countStatus(permissions, ['done', 'hoàn thành', 'đã cấp', 'active'])}</span>
                   </div>
                   <div className="flex justify-between items-center bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm">
                     <span className="text-sm text-gray-600">Đang xử lý (In progress)</span>
-                    <span className="text-base font-bold text-amber-500">{countStatus(permissions, ['in progress', 'open'])}</span>
+                    {/* SỬA TỪ KHÓA ĐẾM CẤP QUYỀN PROCESSING */}
+                    <span className="text-base font-bold text-amber-500">{countStatus(permissions, ['in progress', 'open', 'đang xử lý', 'chờ xử lý', 'chờ duyệt', 'mới'])}</span>
                   </div>
                 </div>
               </div>
@@ -198,7 +206,8 @@ const UnitSection = ({ unitName, data }) => {
               </div>
               <div>
                 <div className="text-gray-500 text-sm font-medium">Link Ứng dụng</div>
-                <div className="text-3xl font-bold text-gray-800">{apps?.length || 0}</div>
+                {/* HIỂN THỊ SỐ LƯỢNG WEB APPS */}
+                <div className="text-3xl font-bold text-gray-800">{webAppsCount}</div>
               </div>
             </div>
 
@@ -208,7 +217,8 @@ const UnitSection = ({ unitName, data }) => {
               </div>
               <div>
                 <div className="text-gray-500 text-sm font-medium">Cơ sở dữ liệu</div>
-                <div className="text-3xl font-bold text-gray-800">{dbs?.length || 0}</div>
+                {/* HIỂN THỊ SỐ LƯỢNG DATABASE */}
+                <div className="text-3xl font-bold text-gray-800">{dbAppsCount}</div>
               </div>
             </div>
 
@@ -299,13 +309,13 @@ export default function Dashboard({
     
         <GlobalStatCard 
           title="Kết nối Active" 
-          value={countStatus(filteredConnections, ['active'])} 
+          value={countStatus(filteredConnections, ['active', 'hoạt động', 'đã kết nối', 'done', 'hoàn thành'])} 
           icon={Activity} 
           colorClass={{ bg: 'bg-emerald-50', text: 'text-emerald-600' }}
         />
         <GlobalStatCard 
           title="Cấp quyền (Done)" 
-          value={countStatus(filteredPermissions, ['done'])} 
+          value={countStatus(filteredPermissions, ['done', 'hoàn thành', 'đã cấp', 'active'])} 
           icon={ShieldCheck} 
           colorClass={{ bg: 'bg-purple-50', text: 'text-purple-600' }}
         />
