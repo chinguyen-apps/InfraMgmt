@@ -180,6 +180,22 @@ export default function App() {
     fetchData(); 
   }, []);
 
+  // Tự động clear filter khi quay về Dashboard
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      // 1. Xóa từ khóa trong ô search
+      setSearchTerm('');
+      
+      // 2. Reset bộ lọc loại ứng dụng (nếu bạn đã thêm appTypeFilter ở bước trước)
+      if (typeof setAppTypeFilter === 'function') {
+        setAppTypeFilter('All');
+      }
+  
+      // 3. (Tùy chọn) Reset đơn vị về "Tất cả" nếu bạn muốn Dashboard luôn hiển thị tổng thể
+      // setSelectedUnit('All'); 
+    }
+  }, [activeTab]); // Chạy mỗi khi activeTab thay đổi
+
   // ============================================================================
   // TỰ ĐỘNG LOGOUT KHI TREO MÁY (INACTIVITY TIMEOUT)
   // ============================================================================
