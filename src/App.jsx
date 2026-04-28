@@ -118,7 +118,7 @@ export default function App() {
     const paramConfig = [{key: 'code', label: 'Tên tham số'}, {key: 'type', label: 'Loại'}, {key: 'value', label: 'Giá trị'}, {key: 'desc', label: 'Mô tả'}];
     setParameters(processData('parameter', data.parameter, modalConfigs.parameter || paramConfig));
     
-    const sysUserConfig = [{key: 'username', label: 'Tên đăng nhập'}, {key: 'fullName', label: 'Họ và Tên'}, {key: 'groupId', label: 'Nhóm quyền'}];
+    const sysUserConfig = [{key: 'username', label: 'Tên đăng nhập'}, {key: 'password', label: 'Mật khẩu'}, {key: 'fullName', label: 'Họ và Tên'}, {key: 'groupId', label: 'Nhóm quyền'}];
     setSystemUsers(processData('systemUser', data.systemUser, sysUserConfig));
     
     const userGrpConfig = [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền'}];
@@ -479,6 +479,17 @@ export default function App() {
     e.preventDefault();
     let submitFormData = { ...formData };
 
+    // --- BỔ SUNG CHECK TRÙNG USERNAME TẠI ĐÂY ---
+    if (modalType === 'systemUser' && !submitFormData.id) {
+      const isDuplicate = systemUsers.some(
+        u => u.username?.toLowerCase() === submitFormData.username?.trim().toLowerCase()
+      );
+      if (isDuplicate) {
+        alert("Lỗi: Tên đăng nhập này đã tồn tại trong hệ thống!");
+        return; // Dừng xử lý
+      }
+    }
+    
     // --- THÊM LOGIC AUTO SET TYPE KHI NHẬP FORM ---
     if (modalType === 'app') {
        const w = String(submitFormData.webLink || '').trim();
