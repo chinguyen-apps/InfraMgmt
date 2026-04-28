@@ -354,6 +354,18 @@ export default function App() {
     setSystemUsers([]); // Thêm dòng này
     setUserGroups([]);  // Thêm dòng này
   };
+
+  // 1. Định nghĩa hàm điều hướng kèm filter
+  const handleDashboardNavigate = (tab, unit, filterValue) => {
+    setActiveTab(tab);
+    if (unit) setSelectedUnit(unit);
+    // Nếu có giá trị lọc (ví dụ 'Production' hoặc 'Active'), ta gán vào ô tìm kiếm
+    if (filterValue) {
+      setSearchTerm(filterValue);
+    } else {
+      setSearchTerm('');
+    }
+  };
   
   const handleChangePassword = async (e) => {
     e.preventDefault(); setPasswordError(''); setPasswordSuccess('');
@@ -721,6 +733,7 @@ export default function App() {
               filteredDNS={filteredDns}        // Đã có sẵn state này trong App.jsx
               filteredApps={formattedApps}     // Dùng formattedApps đã có sẵn trong App.jsx
               filteredDBs={[]}                 // App.jsx hiện chưa có chức năng quản lý DB riêng nên tạm truyền mảng rỗng []
+              onNavigate={handleDashboardNavigate} //Hàm điều hướng khi người dùng click vào các chỉ số trên dashboard
             />
           )}
           {activeTab === 'servers' && hasViewPermission('servers') && <GenericTable title="Quản lý Máy chủ (Server)" type="server" moduleId="servers" data={filteredServers} config={modalConfigs.server} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('servers')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
