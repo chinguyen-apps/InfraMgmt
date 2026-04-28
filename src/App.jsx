@@ -192,7 +192,7 @@ export default function App() {
       }
   
       // 3. (Tùy chọn) Reset đơn vị về "Tất cả" nếu bạn muốn Dashboard luôn hiển thị tổng thể
-      // setSelectedUnit('All'); 
+      setSelectedUnit('All'); 
     }
   }, [activeTab]); // Chạy mỗi khi activeTab thay đổi
 
