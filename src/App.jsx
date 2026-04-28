@@ -588,7 +588,7 @@ export default function App() {
         
         {/* THANH HEADER LUÔN ĐƯỢC HIỂN THỊ DÙ CÓ LỖI HAY KHÔNG */}
         <header style={{ backgroundColor: HEADER_COLOR }} className="p-4 flex justify-between items-center z-10 shadow-md shrink-0 text-white">
-          <div className="flex items-center gap-2 font-bold text-xl"><AppWindow className="w-6 h-6" /> InfraStore</div>
+          <div className="flex items-center gap-2 font-bold text-xl"><AppWindow className="w-6 h-6" /> Infrastructure Management</div>
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg border border-white/20">
               <Building2 className="w-4 h-4 text-white/80" />
