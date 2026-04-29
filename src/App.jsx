@@ -5,6 +5,7 @@ import { hashSHA256, callApi } from './helpers';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import AppStore from './components/AppStore';
+import ProjectPlanManager from './components/ProjectPlanManager';
 import { GenericTable, UserGroupsTable, SystemUsersTable } from './components/Tables';
 
 export default function App() {
