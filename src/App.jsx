@@ -127,7 +127,14 @@ export default function App() {
     setApps(processData('app', data.app, modalConfigs.app));
     setConnections(processData('connection', data.connection, modalConfigs.connection));
 
-    setProjectPlans(processData('projectPlan', data.projectPlan, modalConfigs.projectPlan));
+    setProjectPlans(processData('projectPlan', data.projectPlan, modalConfigs.projectPlan).map(item => ({
+      ...item,
+      // Ép định dạng YYYY-MM-DD để input date hiện được giá trị
+      start: item.start ? new Date(item.start).toISOString().split('T')[0] : '',
+      end: item.end ? new Date(item.end).toISOString().split('T')[0] : '',
+      // Chuẩn hóa logic Bold từ Google Sheet
+      bold: item.bold === true || String(item.bold).toLowerCase() === 'true' || String(item.bold).toLowerCase() === 'x'
+    })));
 
     // Fix map cứng cho các bảng hệ thống (đề phòng config của anh chưa có mảng này)
     const paramConfig = [{key: 'code', label: 'Tên tham số'}, {key: 'type', label: 'Loại'}, {key: 'value', label: 'Giá trị'}, {key: 'desc', label: 'Mô tả'}];
@@ -465,6 +472,24 @@ export default function App() {
       data: items.map(item => getRawItemForApi('projectPlan', item)) 
     }, setIsSyncing);
   };
+
+  const handleBatchUpdateProjectPlan = async (updatedTasks) => {
+      // 1. Cập nhật ngay lập tức giao diện người dùng
+    setProjectPlans(updatedTasks);
+    
+    // 2. Gom các thay đổi và gửi lên Server
+    // Ở đây ta dùng vòng lặp gọi callApi cho các dòng thay đổi
+    // Truyền hàm rỗng () => {} để không hiện loading quá nhiều lần
+    for (const task of updatedTasks) {
+      await callApi({ 
+        action: 'update', 
+        type: 'projectPlan', 
+        id: task.id, 
+        data: getRawItemForApi('projectPlan', task) 
+      }, () => {}); 
+    }
+    alert("Đã đồng bộ toàn bộ kế hoạch lên hệ thống!");
+  };
   
   const executeBulkEdit = async (e) => {
     e.preventDefault();
@@ -788,25 +813,16 @@ export default function App() {
             <ProjectPlanManager 
               tasks={filteredProjectPlans} 
               selectedUnit={selectedUnit}
-              // Quản lý chọn nhiều dòng
+              // Quản lý chọn nhiều dòng từ App.jsx
               selectedIds={selectedItems['projectPlan'] || []}
               setSelectedIds={(ids) => setSelectedItems({ ...selectedItems, projectPlan: ids })}
-              // Xử lý hàng loạt
-              onOpenBulkEdit={() => {
-                setBulkEditData({ type: 'projectPlan', field: 'unit', value: '' });
-                setShowBulkEditModal(true);
-              }}
-              // Cập nhật từng dòng (Inline Edit)
-              onUpdateRow={async (id, data) => {
-                setProjectPlans(projectPlans.map(p => p.id === id ? { ...p, ...data } : p));
-                await callApi({ 
-                  action: 'update', 
-                  type: 'projectPlan', 
-                  id: id, 
-                  data: getRawItemForApi('projectPlan', data) 
-                }, setIsSyncing);
-              }}
+              
+              // Truyền hàm lưu tập trung
+              onBatchUpdate={handleBatchUpdateProjectPlan} 
+              
               onBulkCreate={handleBulkCreateProjectPlan}
+              
+              // Truyền hàm xóa (chỉ cho phép xóa khi chọn nhiều)
               onDelete={(ids) => handleDeleteSelected('projectPlan', ids)}
             />
           )}
