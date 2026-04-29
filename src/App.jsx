@@ -466,34 +466,64 @@ export default function App() {
   };
 
   const handleBulkCreateProjectPlan = async (items) => {
-    // 1. Cập nhật Local State để UI hiển thị ngay lập tức
-    setProjectPlans([...projectPlans, ...items]);
-    
-    // 2. Gọi API để lưu vào Google Sheet
-    await callApi({ 
+  setIsSyncing(true); // Bật kính mờ để user chờ
+  
+  try {
+    // 1. Gửi dữ liệu lên Google Sheets
+    const res = await callApi({ 
       action: 'create', 
       type: 'projectPlan', 
       data: items.map(item => getRawItemForApi('projectPlan', item)) 
-    }, setIsSyncing);
-  };
+    }, () => {}); // Truyền hàm rỗng để không hiện thông báo chồng chéo
+
+    if (res && res.status === 'success') {
+      // 2. BÍ QUYẾT: Gọi lại fetchData để lấy ID thật và xóa sạch ID tạm
+      await fetchData(); 
+      alert("Đã lưu thành công và cập nhật ID hệ thống!");
+    } else {
+      alert("Lỗi: " + (res?.message || "Không thể lưu dữ liệu."));
+    }
+  } catch (error) {
+    alert("Có lỗi xảy ra khi kết nối máy chủ.");
+  } finally {
+    setIsSyncing(false); // Tắt kính mờ
+  }
+};
 
   const handleBatchUpdateProjectPlan = async (updatedTasks) => {
-      // 1. Cập nhật ngay lập tức giao diện người dùng
-    setProjectPlans(updatedTasks);
-    
-    // 2. Gom các thay đổi và gửi lên Server
-    // Ở đây ta dùng vòng lặp gọi callApi cho các dòng thay đổi
-    // Truyền hàm rỗng () => {} để không hiện loading quá nhiều lần
-    for (const task of updatedTasks) {
-      await callApi({ 
+  // 1. Tìm những dòng thực sự có sự thay đổi để tránh gửi dữ liệu thừa
+  // (So sánh updatedTasks với bản gốc projectPlans)
+  const changedTasks = updatedTasks.filter(task => {
+    const original = projectPlans.find(p => p.id === task.id);
+    return JSON.stringify(task) !== JSON.stringify(original);
+  });
+
+  if (changedTasks.length === 0) return alert("Không có thay đổi nào cần lưu!");
+
+  // 2. Hiển thị trạng thái đang xử lý (Kính mờ)
+  setIsSyncing(true);
+
+  try {
+    // 3. BÍ QUYẾT: Bắn tất cả request cùng lúc
+    await Promise.all(changedTasks.map(task => 
+      callApi({ 
         action: 'update', 
         type: 'projectPlan', 
         id: task.id, 
         data: getRawItemForApi('projectPlan', task) 
-      }, () => {}); 
-    }
-    alert("Đã đồng bộ toàn bộ kế hoạch lên hệ thống!");
-  };
+      }, () => {}) // Truyền hàm rỗng để không bị hiện thông báo lỗi lẻ tẻ
+    ));
+
+    // 4. Sau khi TẤT CẢ đã xong, cập nhật State cục bộ và thông báo
+    setProjectPlans(updatedTasks);
+    localStorage.setItem('infra_app_data', JSON.stringify({ ...JSON.parse(localStorage.getItem('infra_app_data')), projectPlan: updatedTasks }));
+    alert(`Đã đồng bộ thành công ${changedTasks.length} thay đổi lên hệ thống!`);
+  } catch (error) {
+    alert("Có lỗi xảy ra trong quá trình đồng bộ. Vui lòng kiểm tra lại kết nối.");
+  } finally {
+    setIsSyncing(false);
+  }
+};
   
   const executeBulkEdit = async (e) => {
     e.preventDefault();
