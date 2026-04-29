@@ -26,6 +26,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('appStore');
   
+  const [projectPlans, setProjectPlans] = useState([]);
   const [servers, setServers] = useState([]);
   const [vips, setVips] = useState([]);
   const [dns, setDns] = useState([]);
@@ -114,6 +115,12 @@ export default function App() {
     setPermissions(processData('permission', data.permission, modalConfigs.permission));
     setApps(processData('app', data.app, modalConfigs.app));
     setConnections(processData('connection', data.connection, modalConfigs.connection));
+
+    setProjectPlans(processData('projectPlan', data.projectPlan, [
+      { key: 'name', label: 'Tên công việc' },
+      { key: 'start', label: 'Bắt đầu' },
+      { key: 'end', label: 'Kết thúc' }
+    ]));
 
     // Fix map cứng cho các bảng hệ thống (đề phòng config của anh chưa có mảng này)
     const paramConfig = [{key: 'code', label: 'Tên tham số'}, {key: 'type', label: 'Loại'}, {key: 'value', label: 'Giá trị'}, {key: 'desc', label: 'Mô tả'}];
@@ -427,7 +434,7 @@ export default function App() {
   const handleDeleteSelected = async (type, ids, skipConfirm = false) => {
     if (!skipConfirm && !window.confirm(`Bạn có chắc chắn muốn xóa ${ids.length} dòng dữ liệu?`)) return;
     const updateLocal = (list, setList) => setList(list.filter(i => !ids.includes(i.id)));
-    if (type === 'server') updateLocal(servers, setServers); else if (type === 'vip') updateLocal(vips, setVips); else if (type === 'dns') updateLocal(dns, setDns);
+    if (type === 'server') updateLocal(servers, setServers); else if (type === 'projectPlan') updateLocal(projectPlans, setProjectPlans); else if (type === 'vip') updateLocal(vips, setVips); else if (type === 'dns') updateLocal(dns, setDns);
     else if (type === 'connection') updateLocal(connections, setConnections); else if (type === 'permission') updateLocal(permissions, setPermissions);
     else if (type === 'app') updateLocal(apps, setApps); else if (type === 'parameter') updateLocal(parameters, setParameters);
     else if (type === 'userGroup') updateLocal(userGroups, setUserGroups); else if (type === 'systemUser') updateLocal(systemUsers, setSystemUsers);
@@ -435,6 +442,18 @@ export default function App() {
     await callApi({ action: 'delete', type: type, ids: ids }, setIsSyncing);
   };
 
+  const handleBulkCreateProjectPlan = async (items) => {
+    // 1. Cập nhật Local State để UI hiển thị ngay lập tức
+    setProjectPlans([...projectPlans, ...items]);
+    
+    // 2. Gọi API để lưu vào Google Sheet
+    await callApi({ 
+      action: 'create', 
+      type: 'projectPlan', 
+      data: items.map(item => getRawItemForApi('projectPlan', item)) 
+    }, setIsSyncing);
+  };
+  
   const executeBulkEdit = async (e) => {
     e.preventDefault();
     const ids = selectedItems[bulkEditData.type] || [];
@@ -572,7 +591,7 @@ export default function App() {
       }));
       if (newItems.length === 0) return;
       
-      if (modalType === 'server') setServers([...servers, ...newItems]); else if (modalType === 'vip') setVips([...vips, ...newItems]); else if (modalType === 'dns') setDns([...dns, ...newItems]);
+      if (modalType === 'server') setServers([...servers, ...newItems]); else if (modalType === 'projectPlan') setProjectPlans([...projectPlans, ...newItems]); else if (modalType === 'vip') setVips([...vips, ...newItems]); else if (modalType === 'dns') setDns([...dns, ...newItems]);
       else if (modalType === 'connection') setConnections([...connections, ...newItems]); else if (modalType === 'permission') setPermissions([...permissions, ...newItems]);
       else if (modalType === 'app') setApps([...apps, ...newItems]); else if (modalType === 'parameter') setParameters([...parameters, ...newItems]);
       else if (modalType === 'userGroup') setUserGroups([...userGroups, ...newItems]); else if (modalType === 'systemUser') setSystemUsers([...systemUsers, ...newItems]);
@@ -751,6 +770,14 @@ export default function App() {
               filteredApps={formattedApps}     // Dùng formattedApps đã có sẵn trong App.jsx
               filteredDBs={[]}                 // App.jsx hiện chưa có chức năng quản lý DB riêng nên tạm truyền mảng rỗng []
               onNavigate={handleDashboardNavigate} //Hàm điều hướng khi người dùng click vào các chỉ số trên dashboard
+            />
+          )}
+          {activeTab === 'projectPlan' && hasViewPermission('projectPlan') && (
+            <ProjectPlanManager 
+              tasks={filteredProjectPlans} 
+              selectedUnit={selectedUnit}
+              onBulkCreate={handleBulkCreateProjectPlan}
+              onDelete={(id) => handleDeleteSelected('projectPlan', [id])}
             />
           )}
           {activeTab === 'servers' && hasViewPermission('servers') && <GenericTable title="Quản lý Máy chủ (Server)" type="server" moduleId="servers" data={filteredServers} config={modalConfigs.server} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('servers')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
