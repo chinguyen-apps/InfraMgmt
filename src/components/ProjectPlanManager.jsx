@@ -114,6 +114,15 @@ export default function ProjectPlanManager({
     setExcelGridRows(newGrid);
   };
 
+  // Thêm state loading nội bộ cho nút bấm
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const handleSaveAll = async () => {
+    setIsSaving(true);
+    await onBatchUpdate(localTasks);
+    setIsSaving(false); // Xong thì trả về trạng thái cũ
+  };
+
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       {/* TOOLBAR */}
@@ -133,8 +142,16 @@ export default function ProjectPlanManager({
         <div className="flex items-center gap-2">
           {hasChanges && viewMode === 'table' && (
             <>
-              <button onClick={() => setLocalTasks(tasks)} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-50"><RotateCcw className="w-4 h-4 mr-1 inline"/> Hủy</button>
-              <button onClick={() => onBatchUpdate(localTasks)} style={{ backgroundColor: HEADER_COLOR }} className="px-6 py-2 text-white rounded-lg text-sm font-bold shadow-lg hover:brightness-110"><Save className="w-4 h-4 mr-1 inline" /> Lưu thay đổi</button>
+              <button disabled={isSaving} onClick={() => setLocalTasks(tasks)} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-50 disabled:opacity-50">Hủy</button>
+              <button 
+                disabled={isSaving}
+                onClick={handleSaveAll} 
+                style={{ backgroundColor: HEADER_COLOR }} 
+                className="px-6 py-2 text-white rounded-lg text-sm font-bold shadow-lg hover:brightness-110 flex items-center gap-2 disabled:bg-gray-400"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
+              </button>
             </>
           )}
           {viewMode === 'excel' && (
