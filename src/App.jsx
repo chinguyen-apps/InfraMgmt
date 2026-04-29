@@ -54,16 +54,19 @@ export default function App() {
   
   
   const applyDataToStates = (data) => {
+    if (!data) return;
+  
+    // 1. HELPER: Chuyển đổi ngày tháng an toàn, chống lùi ngày (Timezone) và Crash trang
     const toSafeDate = (dateVal) => {
       if (!dateVal) return '';
       
-      // 1. Nếu là đối tượng Date, chuyển về ISO string
+      // Nếu là đối tượng Date, chuyển về ISO string
       let dateStr = typeof dateVal === 'object' ? dateVal.toISOString() : String(dateVal);
       
-      // 2. Nếu chứa ký tự T (ISO Format), cắt lấy phần ngày
+      // Nếu chứa ký tự T (ISO Format từ GAS), lấy phần ngày YYYY-MM-DD
       if (dateStr.includes('T')) return dateStr.split('T')[0];
       
-      // 3. Nếu là định dạng VN DD/MM/YYYY, chuyển về YYYY-MM-DD
+      // Nếu là định dạng VN DD/MM/YYYY, chuyển về YYYY-MM-DD để ô Input Date nhận diện
       if (dateStr.includes('/')) {
         const parts = dateStr.split('/');
         if (parts.length === 3) {
@@ -72,149 +75,129 @@ export default function App() {
         }
       }
       
-      // 4. Nếu đã là YYYY-MM-DD thì trả về luôn, không parsing qua Date object
+      // Nếu đã là YYYY-MM-DD thì trả về luôn, không parsing qua Date object để tránh lệch múi giờ
       return dateStr;
     };
-    if (!data) return;
-    
-    const newHeaderMaps = {}; // Tạo bộ từ điển mới
-
-    // Hàm chuẩn hóa thông minh: Tự động map Tiếng Việt <-> Tiếng Anh
+  
+    const newHeaderMaps = { ...headerMaps }; // Giữ lại các map cũ khi cập nhật từng phần
+  
+    // 2. HELPER: Chuẩn hóa dữ liệu giữa Tiếng Việt (Sheet) và Tiếng Anh (Code)
     const processData = (type, rawData, configMapping) => {
-      if (!rawData || !Array.isArray(rawData)) return [];
+      if (!rawData || !Array.isArray(rawData)) return null; // Trả về null nếu không có data để phân biệt với mảng rỗng
       
-      // 1. Tự động nội suy Header Map từ dòng dữ liệu đầu tiên và file Config
       const mapping = {};
-      // Ngay cả khi rawData trống, ta vẫn tạo mapping mặc định từ configMapping
+      const rawKeys = rawData.length > 0 ? Object.keys(rawData[0]) : [];
+  
       if (configMapping) {
-        const rawKeys = rawData.length > 0 ? Object.keys(rawData[0]) : [];
         configMapping.forEach(col => {
-          // Nếu có dữ liệu thực tế, map theo thực tế
           if (rawKeys.includes(col.key)) mapping[col.key] = col.key;
           else if (rawKeys.includes(col.label)) mapping[col.label] = col.key;
-          // Nếu sheet trống, mặc định map English -> English (khớp với DEFAULT_HEADERS ở GAS)
           else if (rawData.length === 0) mapping[col.key] = col.key;
         });
       }
-      if (rawData.length > 0 && configMapping) {
-         const rawKeys = Object.keys(rawData[0]);
-         configMapping.forEach(col => {
-            // Nếu data trả về Tiếng Anh (chuẩn gốc) -> Map 1:1
-            if (rawKeys.includes(col.key)) {
-               mapping[col.key] = col.key;
-            } 
-            // Nếu data trả về Tiếng Việt (từ Google Sheet) -> Map Label thành Key
-            else if (rawKeys.includes(col.label)) {
-               mapping[col.label] = col.key;
-            }
-         });
-      }
-
-      // 2. Lưu lại từ điển ngược (Tiếng Anh -> Tiếng Việt) để dùng cho hàm getRawItemForApi
-      // Giúp lúc anh bấm "Thêm mới/Lưu", nó sẽ gửi đúng cột Tiếng Việt lên Google Sheet
+  
+      // Lưu lại từ điển ngược để dùng cho các hàm Save/Update sau này
       const reverseMap = {};
-      Object.entries(mapping).forEach(([raw, eng]) => {
-          reverseMap[eng] = raw;
-      });
+      Object.entries(mapping).forEach(([raw, eng]) => { reverseMap[eng] = raw; });
       newHeaderMaps[type] = reverseMap;
-
-      // 3. Tiến hành phiên dịch và chuyển đổi dữ liệu
+  
       return rawData.map(item => {
-        const normalizedItem = { id: item.id, type: item.type }; // Luôn giữ ID và Type
-        
+        const normalizedItem = { id: item.id }; 
         Object.keys(item).forEach(rawKey => {
           const englishKey = mapping[rawKey];
-          if (englishKey) {
-            normalizedItem[englishKey] = item[rawKey];
-          } else {
-            normalizedItem[rawKey] = item[rawKey]; // Giữ nguyên các trường không có trong config
-          }
+          if (englishKey) normalizedItem[englishKey] = item[rawKey];
+          else normalizedItem[rawKey] = item[rawKey];
         });
-
-        // Parse JSON đặc biệt cho mảng quyền
+  
+        // Xử lý đặc biệt cho JSON Quyền hạn
         if (type === 'userGroup' && normalizedItem.permissions) {
-            try { 
-              normalizedItem.permissions = typeof normalizedItem.permissions === 'string' 
-                ? JSON.parse(normalizedItem.permissions) 
-                : normalizedItem.permissions; 
-            } catch(e) {}
+          try { 
+            normalizedItem.permissions = typeof normalizedItem.permissions === 'string' 
+              ? JSON.parse(normalizedItem.permissions) : normalizedItem.permissions; 
+          } catch(e) { normalizedItem.permissions = {}; }
         }
         return normalizedItem;
-      }).filter(Boolean);
+      });
     };
-
-    // Áp dụng dữ liệu vào các State chính
-    setServers(processData('server', data.server, modalConfigs.server));
-    setVips(processData('vip', data.vip, modalConfigs.vip));
-    setDns(processData('dns', data.dns, modalConfigs.dns));
-    setPermissions(processData('permission', data.permission, modalConfigs.permission));
-    setApps(processData('app', data.app, modalConfigs.app));
-    setConnections(processData('connection', data.connection, modalConfigs.connection));
-
-    setProjectPlans(processData('projectPlan', data.projectPlan, modalConfigs.projectPlan).map(item => ({
-      ...item,
-      start: toSafeDate(item.start),
-      end: toSafeDate(item.end),
-      level: item.level ? parseInt(item.level) : null 
-    })));
-
-    // Fix map cứng cho các bảng hệ thống (đề phòng config của anh chưa có mảng này)
-    const paramConfig = [{key: 'code', label: 'Tên tham số'}, {key: 'type', label: 'Loại'}, {key: 'value', label: 'Giá trị'}, {key: 'desc', label: 'Mô tả'}];
-    setParameters(processData('parameter', data.parameter, modalConfigs.parameter || paramConfig));
+  
+    // 3. CẬP NHẬT TRẠNG THÁI (CHỈ CẬP NHẬT NHỮNG GÌ CÓ TRONG DATA TRẢ VỀ)
+    // Việc kiểm tra "if (data.xxx)" giúp hỗ trợ hàm fetchData(type) chạy nhanh hơn.
+  
+    if (data.server) setServers(processData('server', data.server, modalConfigs.server));
+    if (data.vip) setVips(processData('vip', data.vip, modalConfigs.vip));
+    if (data.dns) setDns(processData('dns', data.dns, modalConfigs.dns));
+    if (data.permission) setPermissions(processData('permission', data.permission, modalConfigs.permission));
+    if (data.app) setApps(processData('app', data.app, modalConfigs.app));
+    if (data.connection) setConnections(processData('connection', data.connection, modalConfigs.connection));
+  
+    // Xử lý riêng cho Project Plan (Date & Level)
+    if (data.projectPlan) {
+      const processedPlan = processData('projectPlan', data.projectPlan, modalConfigs.projectPlan);
+      if (processedPlan) {
+        setProjectPlans(processedPlan.map(item => ({
+          ...item,
+          start: toSafeDate(item.start),
+          end: toSafeDate(item.end),
+          // Chuyển level sang số để Gantt Chart tính toán Style
+          level: item.level ? parseInt(item.level) : null 
+        })));
+      }
+    }
+  
+    // Cập nhật các bảng hệ thống
+    if (data.parameter) {
+      const pConfig = [{key: 'code', label: 'Tên tham số'}, {key: 'type', label: 'Loại'}, {key: 'value', label: 'Giá trị'}, {key: 'desc', label: 'Mô tả'}];
+      setParameters(processData('parameter', data.parameter, modalConfigs.parameter || pConfig));
+    }
     
-    const sysUserConfig = [{key: 'username', label: 'Tên đăng nhập'}, {key: 'password', label: 'Mật khẩu'}, {key: 'fullName', label: 'Họ và Tên'}, {key: 'groupId', label: 'Nhóm quyền'}];
-    setSystemUsers(processData('systemUser', data.systemUser, sysUserConfig));
+    if (data.systemUser) {
+      const uConfig = [{key: 'username', label: 'Tên đăng nhập'}, {key: 'fullName', label: 'Họ và Tên'}, {key: 'groupId', label: 'Nhóm quyền'}];
+      setSystemUsers(processData('systemUser', data.systemUser, uConfig));
+    }
     
-    const userGrpConfig = [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền'}];
-    setUserGroups(processData('userGroup', data.userGroup, userGrpConfig));
-
-    // Cập nhật State HeaderMaps để hệ thống CRUD gọi tự động
+    if (data.userGroup) {
+      const gConfig = [{key: 'groupName', label: 'Tên Nhóm'}, {key: 'permissions', label: 'Quyền'}];
+      setUserGroups(processData('userGroup', data.userGroup, gConfig));
+    }
+  
+    // 4. ĐỒNG BỘ TỪ ĐIỂN HEADER CHO HÀM CRUD
     setHeaderMaps(newHeaderMaps); 
   };
   
   // 1. Khai báo hàm fetchData chứa TẤT CẢ logic xử lý dữ liệu của bạn
-  const fetchData = async () => {
-    // 1. NGAY LẬP TỨC: Thử lấy dữ liệu cũ từ LocalStorage hiển thị trước
-    const token = localStorage.getItem('auth_token');
-    const cachedLocalData = localStorage.getItem('infra_app_data');
-    if (token && cachedLocalData) {
-        try {
-            applyDataToStates(JSON.parse(cachedLocalData));
-            setIsLoading(false); // Tắt loading full-screen ngay lập tức nếu có cache!
-        } catch(e) {}
-    }
+  const fetchData = async (targetType = null) => {
+  // 1. Chỉ hiện loading toàn màn hình nếu là tải lần đầu (targetType === null)
+  if (!targetType) setIsLoading(true);
 
-    // 2. CHẠY NGẦM: Gọi API lấy dữ liệu mới
-    try {
-        // BÍ QUYẾT TRÁNH LỖI CRASH Ở ĐÂY: Truyền một hàm rỗng () => {} vào tham số thứ 2
-        // Nó giúp hàm callApi không bị crash, mà cũng không bật cái kính mờ ở giao diện lên!
-        const res = await callApi({ action: 'read' }, () => {}); 
-        
-        if (res && res.status === 'success') {
-          applyDataToStates(res.data);
-          // Lưu lại bản mới nhất vào LocalStorage cho lần sau
-          localStorage.setItem('infra_app_data', JSON.stringify(res.data)); 
-          if (res.user) {
-             setCurrentUser(res.user);
-             localStorage.setItem('current_user', JSON.stringify(res.user));
-          }
-        } else if (res && res.status === 'error') {
-           if (String(res.message).includes("Unauthorized")) {
-              handleLogout(); // Nếu Token hết hạn, ép logout luôn cho sạch
-          } else {
-              setApiError(res.message);
-          }
-        }
-    } catch (error) {
-        console.error("Lỗi ngầm khi fetch data:", error);
-        // Nếu sập mạng hoặc Worker không phản hồi, vẫn có thông báo
-        setApiError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
-    } finally {
-        // LƯU Ý QUAN TRỌNG NHẤT: Khối finally LUÔN LUÔN CHẠY
-        // Chốt chặn cuối cùng đảm bảo 100% tắt vòng quay Loading, giúp user không bị treo màn hình
-        setIsLoading(false);
+  try {
+    // 2. Gửi request kèm theo type nếu cần
+    const res = await callApi({ 
+      action: 'read', 
+      type: targetType 
+    }, () => {}); 
+    
+    if (res && res.status === 'success') {
+      // 3. Cập nhật State một cách chọn lọc
+      applyDataToStates(res.data);
+      
+      // 4. Cập nhật cache LocalStorage một cách thông minh (Merge dữ liệu)
+      const oldCached = JSON.parse(localStorage.getItem('infra_app_data') || '{}');
+      const newCached = { ...oldCached, ...res.data };
+      localStorage.setItem('infra_app_data', JSON.stringify(newCached));
+      
+      if (res.user) {
+         setCurrentUser(res.user);
+         localStorage.setItem('current_user', JSON.stringify(res.user));
+      }
+    } else if (res?.message?.includes("Unauthorized")) {
+      handleLogout();
     }
-  };
+  } catch (error) {
+    console.error("Fetch error:", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // 2. Chỉ dùng MỘT useEffect duy nhất khi khởi động App
   useEffect(() => {
@@ -489,29 +472,23 @@ export default function App() {
   };
 
   const handleBulkCreateProjectPlan = async (items) => {
-  setIsSyncing(true); // Bật kính mờ để user chờ
+    setIsSyncing(true);
+    try {
+      const res = await callApi({ 
+        action: 'create', 
+        type: 'projectPlan', 
+        data: items.map(item => getRawItemForApi('projectPlan', item)) 
+      }, () => {});
   
-  try {
-    // 1. Gửi dữ liệu lên Google Sheets
-    const res = await callApi({ 
-      action: 'create', 
-      type: 'projectPlan', 
-      data: items.map(item => getRawItemForApi('projectPlan', item)) 
-    }, () => {}); // Truyền hàm rỗng để không hiện thông báo chồng chéo
-
-    if (res && res.status === 'success') {
-      // 2. BÍ QUYẾT: Gọi lại fetchData để lấy ID thật và xóa sạch ID tạm
-      await fetchData(); 
-      alert("Đã lưu thành công và cập nhật ID hệ thống!");
-    } else {
-      alert("Lỗi: " + (res?.message || "Không thể lưu dữ liệu."));
+      if (res?.status === 'success') {
+        // CHỈ TẢI LẠI ĐÚNG PROJECT PLAN
+        await fetchData('projectPlan'); 
+        alert("Đã lưu thành công!");
+      }
+    } finally {
+      setIsSyncing(false);
     }
-  } catch (error) {
-    alert("Có lỗi xảy ra khi kết nối máy chủ.");
-  } finally {
-    setIsSyncing(false); // Tắt kính mờ
-  }
-};
+  };
 
   const handleBatchUpdateProjectPlan = async (updatedTasks) => {
     setIsSyncing(true);
@@ -522,21 +499,17 @@ export default function App() {
       });
   
       if (changedTasks.length > 0) {
-        // GỬI 1 REQUEST DUY NHẤT CHỨA TẤT CẢ DỮ LIỆU
+        // Dùng Bulk Update để tối ưu tốc độ
         await callApi({ 
           action: 'bulkUpdate', 
           type: 'projectPlan', 
-          data: changedTasks.map(task => ({
-            id: task.id,
-            data: getRawItemForApi('projectPlan', task)
-          }))
+          data: changedTasks.map(task => ({ id: task.id, data: getRawItemForApi('projectPlan', task) }))
         }, () => {});
       }
   
-      await fetchData(); 
+      // TẢI LẠI TRÚNG ĐÍCH
+      await fetchData('projectPlan'); 
       alert("Đồng bộ thành công!");
-    } catch (error) {
-      alert("Lỗi đồng bộ!");
     } finally {
       setIsSyncing(false);
     }
