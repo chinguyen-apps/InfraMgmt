@@ -56,14 +56,24 @@ export default function App() {
   const applyDataToStates = (data) => {
     const toSafeDate = (dateVal) => {
       if (!dateVal) return '';
-      try {
-        const d = new Date(dateVal);
-        // Kiểm tra nếu ngày tháng không hợp lệ (Invalid Date)
-        if (isNaN(d.getTime())) return ''; 
-        return d.toISOString().split('T')[0];
-      } catch (e) {
-        return ''; // Trả về chuỗi rỗng thay vì làm crash app
+      
+      // 1. Nếu là đối tượng Date, chuyển về ISO string
+      let dateStr = typeof dateVal === 'object' ? dateVal.toISOString() : String(dateVal);
+      
+      // 2. Nếu chứa ký tự T (ISO Format), cắt lấy phần ngày
+      if (dateStr.includes('T')) return dateStr.split('T')[0];
+      
+      // 3. Nếu là định dạng VN DD/MM/YYYY, chuyển về YYYY-MM-DD
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const [d, m, y] = parts;
+          return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        }
       }
+      
+      // 4. Nếu đã là YYYY-MM-DD thì trả về luôn, không parsing qua Date object
+      return dateStr;
     };
     if (!data) return;
     
@@ -504,32 +514,33 @@ export default function App() {
 };
 
   const handleBatchUpdateProjectPlan = async (updatedTasks) => {
-  setIsSyncing(true);
-  try {
-    const changedTasks = updatedTasks.filter(task => {
-      const original = projectPlans.find(p => p.id === task.id);
-      return JSON.stringify(task) !== JSON.stringify(original);
-    });
-
-    if (changedTasks.length > 0) {
-      await Promise.all(changedTasks.map(task => 
-        callApi({ 
-          action: 'update', type: 'projectPlan', id: task.id, 
-          data: getRawItemForApi('projectPlan', task) 
-        }, () => {})
-      ));
+    setIsSyncing(true);
+    try {
+      const changedTasks = updatedTasks.filter(task => {
+        const original = projectPlans.find(p => p.id === task.id);
+        return JSON.stringify(task) !== JSON.stringify(original);
+      });
+  
+      if (changedTasks.length > 0) {
+        // GỬI 1 REQUEST DUY NHẤT CHỨA TẤT CẢ DỮ LIỆU
+        await callApi({ 
+          action: 'bulkUpdate', 
+          type: 'projectPlan', 
+          data: changedTasks.map(task => ({
+            id: task.id,
+            data: getRawItemForApi('projectPlan', task)
+          }))
+        }, () => {});
+      }
+  
+      await fetchData(); 
+      alert("Đồng bộ thành công!");
+    } catch (error) {
+      alert("Lỗi đồng bộ!");
+    } finally {
+      setIsSyncing(false);
     }
-
-    // Sau khi lưu xong, ép hệ thống tải lại từ Server để lấy ID và dữ liệu chuẩn nhất
-    await fetchData(); 
-    alert("Đã đồng bộ thành công!");
-  } catch (error) {
-    console.error("Lỗi lưu Batch:", error);
-    alert("Có lỗi xảy ra khi lưu. Vui lòng F5 và thử lại.");
-  } finally {
-    setIsSyncing(false);
-  }
-};
+  };
   
   const executeBulkEdit = async (e) => {
     e.preventDefault();
