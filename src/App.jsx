@@ -50,7 +50,21 @@ export default function App() {
   const [inputMode, setInputMode] = useState('grid');
   const [gridRows, setGridRows] = useState([{}]);
 
+  
+  
+  
   const applyDataToStates = (data) => {
+    const toSafeDate = (dateVal) => {
+      if (!dateVal) return '';
+      try {
+        const d = new Date(dateVal);
+        // Kiểm tra nếu ngày tháng không hợp lệ (Invalid Date)
+        if (isNaN(d.getTime())) return ''; 
+        return d.toISOString().split('T')[0];
+      } catch (e) {
+        return ''; // Trả về chuỗi rỗng thay vì làm crash app
+      }
+    };
     if (!data) return;
     
     const newHeaderMaps = {}; // Tạo bộ từ điển mới
@@ -129,9 +143,8 @@ export default function App() {
 
     setProjectPlans(processData('projectPlan', data.projectPlan, modalConfigs.projectPlan).map(item => ({
       ...item,
-      start: item.start ? new Date(item.start).toISOString().split('T')[0] : '',
-      end: item.end ? new Date(item.end).toISOString().split('T')[0] : '',
-      // Chuyển level về dạng số hoặc null để dễ xử lý style
+      start: toSafeDate(item.start),
+      end: toSafeDate(item.end),
       level: item.level ? parseInt(item.level) : null 
     })));
 
@@ -491,35 +504,28 @@ export default function App() {
 };
 
   const handleBatchUpdateProjectPlan = async (updatedTasks) => {
-  // 1. Tìm những dòng thực sự có sự thay đổi để tránh gửi dữ liệu thừa
-  // (So sánh updatedTasks với bản gốc projectPlans)
-  const changedTasks = updatedTasks.filter(task => {
-    const original = projectPlans.find(p => p.id === task.id);
-    return JSON.stringify(task) !== JSON.stringify(original);
-  });
-
-  if (changedTasks.length === 0) return alert("Không có thay đổi nào cần lưu!");
-
-  // 2. Hiển thị trạng thái đang xử lý (Kính mờ)
   setIsSyncing(true);
-
   try {
-    // 3. BÍ QUYẾT: Bắn tất cả request cùng lúc
-    await Promise.all(changedTasks.map(task => 
-      callApi({ 
-        action: 'update', 
-        type: 'projectPlan', 
-        id: task.id, 
-        data: getRawItemForApi('projectPlan', task) 
-      }, () => {}) // Truyền hàm rỗng để không bị hiện thông báo lỗi lẻ tẻ
-    ));
+    const changedTasks = updatedTasks.filter(task => {
+      const original = projectPlans.find(p => p.id === task.id);
+      return JSON.stringify(task) !== JSON.stringify(original);
+    });
 
-    // 4. Sau khi TẤT CẢ đã xong, cập nhật State cục bộ và thông báo
-    setProjectPlans(updatedTasks);
-    localStorage.setItem('infra_app_data', JSON.stringify({ ...JSON.parse(localStorage.getItem('infra_app_data')), projectPlan: updatedTasks }));
-    alert(`Đã đồng bộ thành công ${changedTasks.length} thay đổi lên hệ thống!`);
+    if (changedTasks.length > 0) {
+      await Promise.all(changedTasks.map(task => 
+        callApi({ 
+          action: 'update', type: 'projectPlan', id: task.id, 
+          data: getRawItemForApi('projectPlan', task) 
+        }, () => {})
+      ));
+    }
+
+    // Sau khi lưu xong, ép hệ thống tải lại từ Server để lấy ID và dữ liệu chuẩn nhất
+    await fetchData(); 
+    alert("Đã đồng bộ thành công!");
   } catch (error) {
-    alert("Có lỗi xảy ra trong quá trình đồng bộ. Vui lòng kiểm tra lại kết nối.");
+    console.error("Lỗi lưu Batch:", error);
+    alert("Có lỗi xảy ra khi lưu. Vui lòng F5 và thử lại.");
   } finally {
     setIsSyncing(false);
   }
