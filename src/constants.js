@@ -19,6 +19,13 @@ export const SYSTEM_MODULES = [
 ];
 
 export const modalConfigs = {
+  projectPlan: [
+    { key: 'unit', label: 'Đơn vị' },
+    { key: 'name', label: 'Tên công việc' },
+    { key: 'start', label: 'Bắt đầu' },
+    { key: 'end', label: 'Kết thúc' },
+    { key: 'bold', label: 'In đậm' }
+  ],
   server: [
     { key: 'unit', label: 'Đơn vị' }, { key: 'env', label: 'Môi trường' }, { key: 'hostname', label: 'Hostname' },
     { key: 'ip', label: 'IP' }, { key: 'app', label: 'Application' }, { key: 'cpu', label: 'CPU' },
