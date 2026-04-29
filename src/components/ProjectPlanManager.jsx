@@ -56,8 +56,8 @@ export default function ProjectPlanManager({
       const todayPos = ((new Date() - startView) / totalTime) * 100;
 
       const tasksWithPos = localTasks.map((t, index) => {
-        const s = new Date(t.start);
-        const e = new Date(t.end);
+        const s = new Date(t.start + 'T00:00:00'); // Thêm T00:00:00 để ép về giờ địa phương
+        const e = new Date(t.end + 'T23:59:59');
         // Chốt chặn 2: Nếu ngày sai, ẩn thanh bar thay vì làm crash CSS
         if (isNaN(s.getTime()) || isNaN(e.getTime())) return { ...t, left: 0, width: 0, color: 'transparent' };
         
