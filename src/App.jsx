@@ -491,7 +491,7 @@ export default function App() {
   };
 
   const handleBatchUpdateProjectPlan = async (updatedTasks) => {
-    setIsSyncing(true);
+    setIsSyncing(true); // Hiện kính mờ
     try {
       const changedTasks = updatedTasks.filter(task => {
         const original = projectPlans.find(p => p.id === task.id);
@@ -499,19 +499,28 @@ export default function App() {
       });
   
       if (changedTasks.length > 0) {
-        // Dùng Bulk Update để tối ưu tốc độ
-        await callApi({ 
+        // Gửi Bulk Update
+        const res = await callApi({ 
           action: 'bulkUpdate', 
           type: 'projectPlan', 
-          data: changedTasks.map(task => ({ id: task.id, data: getRawItemForApi('projectPlan', task) }))
+          data: changedTasks.map(task => ({ 
+            id: task.id, 
+            data: getRawItemForApi('projectPlan', task) 
+          }))
         }, () => {});
+        
+        if (res?.status === 'success') {
+          // TẢI LẠI TRÚNG ĐÍCH ĐỂ ĐỒNG BỘ ID VÀ NGÀY THÁNG
+          await fetchData('projectPlan'); 
+          alert("Đã lưu thành công " + changedTasks.length + " thay đổi!");
+        }
+      } else {
+        alert("Không có thay đổi nào cần lưu.");
       }
-  
-      // TẢI LẠI TRÚNG ĐÍCH
-      await fetchData('projectPlan'); 
-      alert("Đồng bộ thành công!");
+    } catch (error) {
+      alert("Lỗi khi lưu dữ liệu. Vui lòng kiểm tra lại kết nối.");
     } finally {
-      setIsSyncing(false);
+      setIsSyncing(false); // Tắt kính mờ
     }
   };
   
