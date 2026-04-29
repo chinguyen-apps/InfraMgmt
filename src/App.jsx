@@ -117,6 +117,7 @@ export default function App() {
     setConnections(processData('connection', data.connection, modalConfigs.connection));
 
     setProjectPlans(processData('projectPlan', data.projectPlan, [
+      { key: 'unit', label: 'Đơn vị' },
       { key: 'name', label: 'Tên công việc' },
       { key: 'start', label: 'Bắt đầu' },
       { key: 'end', label: 'Kết thúc' }
@@ -294,6 +295,7 @@ export default function App() {
   const filteredParameters = useMemo(() => getSearchOnlyData(parameters), [parameters, searchTerm]);
   const filteredUserGroups = useMemo(() => getSearchOnlyData(userGroups), [userGroups, searchTerm]);
   const filteredSystemUsers = useMemo(() => getSearchOnlyData(systemUsers), [systemUsers, searchTerm]);
+  const filteredProjectPlans = useMemo(() => getFilteredData(projectPlans), [projectPlans, selectedUnit, searchTerm]);
   
   const formattedApps = useMemo(() => {
     return getFilteredData(apps).map(app => ({
