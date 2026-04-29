@@ -1,216 +1,214 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Calendar, 
-  List, 
-  Plus, 
-  Trash2, 
   Table as TableIcon, 
   LayoutGrid, 
   ClipboardList, 
   Save, 
-  X,
-  AlertCircle
+  Trash2, 
+  Plus, 
+  AlertCircle, 
+  CheckSquare, 
+  Square, 
+  Edit3,
+  X
 } from 'lucide-react';
 
 /**
- * PROJECT PLAN MANAGER COMPONENT
- * Dùng để quản lý lộ trình dự án (Project Timeline)
- * Tích hợp: Bảng, Gantt Chart và Excel Paste logic.
+ * PROJECT PLAN MANAGER - FULL VERSION
+ * Chế độ: Grid Edit, Gantt Chart, Excel Import
  */
 export default function ProjectPlanManager({ 
-  tasks = [],        // Dữ liệu từ projectPlans state trong App.jsx
-  onBulkCreate,     // Hàm gọi callApi action: 'create'
-  onDelete,         // Hàm gọi callApi action: 'delete'
-  selectedUnit      // Đơn vị đang chọn từ Header
+  tasks = [],        // Dữ liệu đã lọc từ App.jsx
+  selectedUnit,      // Đơn vị hiện tại
+  selectedIds = [],  // Danh sách ID đang chọn
+  setSelectedIds,    // Hàm cập nhật danh sách chọn
+  onUpdateRow,       // Hàm cập nhật từng dòng (Inline Edit)
+  onBulkCreate,      // Hàm lưu nhiều dòng từ Excel
+  onDelete,          // Hàm xóa (nhận mảng IDs)
+  onOpenBulkEdit     // Hàm mở Modal sửa hàng loạt
 }) {
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'gantt' | 'excel'
-  const [gridRows, setGridRows] = useState([{}, {}, {}, {}, {}]); // Khởi tạo 5 dòng trống
+  const [excelGridRows, setExcelGridRows] = useState([{}, {}, {}, {}, {}]); 
   
-  const HEADER_COLOR = '#059669'; // Emerald-600 đồng bộ với App.jsx
+  const HEADER_COLOR = '#006D5B'; // Đồng bộ với constants.js
 
-  // Cấu hình các cột cho chế độ dán Excel
-  const columns = [
-    { key: 'unit', label: 'Đơn vị' },
-    { key: 'name', label: 'Tên công việc' },
-    { key: 'start', label: 'Ngày bắt đầu' },
-    { key: 'end', label: 'Ngày kết thúc' },
-    { key: 'bold', label: 'In đậm (x)' }
-  ];
-
-  // --- LOGIC XỬ LÝ DATE & GANTT ---
+  // --- HELPER LOGIC ---
   const formatDateDisplay = (dateStr) => {
     if (!dateStr || !dateStr.includes('-')) return dateStr;
     const [y, m, d] = dateStr.split('-');
     return `${d}/${m}/${y}`;
   };
 
+  // --- MULTI-SELECT LOGIC ---
+  const toggleSelectAll = () => {
+    if (selectedIds.length === tasks.length && tasks.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(tasks.map(t => t.id));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(i => i !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  // --- INLINE EDIT LOGIC ---
+  const handleInlineChange = (id, field, value) => {
+    const originalRow = tasks.find(t => t.id === id);
+    if (originalRow) {
+      onUpdateRow(id, { ...originalRow, [field]: value });
+    }
+  };
+
+  // --- GANTT CALCULATION ---
   const ganttData = useMemo(() => {
     if (!tasks || tasks.length === 0) return { months: [], tasksWithPos: [] };
     
-    // Lấy khoảng ngày rộng nhất
     const dates = tasks.flatMap(t => [new Date(t.start), new Date(t.end)]);
     const minDate = new Date(Math.min(...dates));
     const maxDate = new Date(Math.max(...dates));
     
-    // Tạo danh mục các tháng hiển thị ở header Gantt
+    // Set về đầu tháng của ngày nhỏ nhất
+    const startView = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+    
     const months = [];
-    let current = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-    while (current <= maxDate) {
-      months.push(new Date(current));
-      current.setMonth(current.getMonth() + 1);
+    let curr = new Date(startView);
+    while (curr <= maxDate || months.length < 3) {
+      months.push(new Date(curr));
+      curr.setMonth(curr.getMonth() + 1);
     }
 
+    const totalTime = months[months.length - 1].getTime() + (30 * 24 * 3600 * 1000) - startView.getTime();
+
     const tasksWithPos = tasks.map(t => {
-      const start = new Date(t.start);
-      const end = new Date(t.end);
-      const left = ((start - minDate) / (maxDate - minDate)) * 100;
-      const width = ((end - start) / (maxDate - minDate)) * 100;
+      const s = new Date(t.start);
+      const e = new Date(t.end);
+      const left = ((s - startView) / totalTime) * 100;
+      const width = ((e - s) / totalTime) * 100;
       return { ...t, left, width };
     });
 
-    return { months, tasksWithPos, minDate, maxDate };
+    return { months, tasksWithPos };
   }, [tasks]);
 
-  // --- LOGIC NHẬP LIỆU EXCEL ---
-  const handleGridChange = (rowIndex, key, value) => {
-    const newGrid = [...gridRows];
-    newGrid[rowIndex][key] = value;
-    setGridRows(newGrid);
-  };
-
-  const handleGridPaste = (e, rowIndex, colIndex) => {
+  // --- EXCEL PASTE LOGIC ---
+  const handleExcelPaste = (e, rIdx, cIdx) => {
     e.preventDefault();
     const pasteData = e.clipboardData.getData('text');
     if (!pasteData) return;
 
     const rows = pasteData.split(/\r?\n/).filter(row => row.trim() !== '');
-    const newGridData = [...gridRows];
+    const newGrid = [...excelGridRows];
+    const cols = ['unit', 'name', 'start', 'end', 'bold'];
 
     rows.forEach((rowStr, i) => {
       const cells = rowStr.split('\t');
-      const targetRowIndex = rowIndex + i;
-      if (!newGridData[targetRowIndex]) newGridData[targetRowIndex] = {};
-
-      cells.forEach((cellVal, j) => {
-        const targetColIndex = colIndex + j;
-        if (targetColIndex < columns.length) {
-          let value = cellVal.trim();
-          
-          // Tự động chuyển DD/MM/YYYY sang YYYY-MM-DD cho cột ngày
-          const currentKey = columns[targetColIndex].key;
-          if ((currentKey === 'start' || currentKey === 'end') && value.includes('/')) {
-            const parts = value.split('/');
-            if (parts.length === 3) {
-              const [d, m, y] = parts;
-              value = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-            }
+      const targetR = rIdx + i;
+      if (!newGrid[targetR]) newGrid[targetR] = {};
+      cells.forEach((val, j) => {
+        const targetC = cIdx + j;
+        if (targetC < cols.length) {
+          let finalVal = val.trim();
+          // Chuyển date DD/MM/YYYY sang YYYY-MM-DD
+          if ((cols[targetC] === 'start' || cols[targetC] === 'end') && finalVal.includes('/')) {
+            const [d, m, y] = finalVal.split('/');
+            finalVal = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
           }
-          newGridData[targetRowIndex][currentKey] = value;
+          newGrid[targetR][cols[targetC]] = finalVal;
         }
       });
     });
-    setGridRows(newGridData);
+    setExcelGridRows(newGrid);
   };
 
-  const handleSaveExcel = () => {
-    const validRows = gridRows
+  const saveExcelData = () => {
+    const toSave = excelGridRows
       .filter(r => r.name && r.start && r.end)
       .map(r => ({
         ...r,
-        unit: r.unit || selectedUnit, // Fallback về đơn vị đang chọn nếu trống
+        unit: r.unit || selectedUnit,
         bold: r.bold?.toLowerCase() === 'x' || r.bold === 'true'
       }));
-
-    if (validRows.length === 0) {
-      alert("Vui lòng nhập ít nhất Tên việc, Ngày bắt đầu và Ngày kết thúc!");
-      return;
+    if (toSave.length > 0) {
+      onBulkCreate(toSave);
+      setExcelGridRows([{}, {}, {}, {}, {}]);
+      setViewMode('table');
     }
-    
-    onBulkCreate(validRows);
-    setGridRows([{}, {}, {}, {}, {}]); // Reset grid
-    setViewMode('table');
   };
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      {/* HEADER CONTROLS */}
-      <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-slate-50/50">
+      {/* TOOLBAR */}
+      <div className="p-4 border-b flex justify-between items-center bg-slate-50/50 sticky top-0 z-30">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-emerald-600" />
-            Kế hoạch Triển khai
-          </h2>
           <div className="flex bg-gray-200 p-1 rounded-lg">
-            <button 
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'table' ? 'bg-white shadow text-emerald-700' : 'text-gray-600'}`}
-            >
-              <TableIcon className="w-4 h-4" /> Bảng biểu
-            </button>
-            <button 
-              onClick={() => setViewMode('gantt')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'gantt' ? 'bg-white shadow text-emerald-700' : 'text-gray-600'}`}
-            >
-              <LayoutGrid className="w-4 h-4" /> Gantt Chart
-            </button>
-            <button 
-              onClick={() => setViewMode('excel')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'excel' ? 'bg-white shadow text-emerald-700' : 'text-gray-600'}`}
-            >
-              <ClipboardList className="w-4 h-4" /> Dán từ Excel
-            </button>
+            <button onClick={() => setViewMode('table')} className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'table' ? 'bg-white shadow text-emerald-700' : 'text-gray-600'}`}><TableIcon className="w-4 h-4"/> Grid View</button>
+            <button onClick={() => setViewMode('gantt')} className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'gantt' ? 'bg-white shadow text-emerald-700' : 'text-gray-600'}`}><LayoutGrid className="w-4 h-4"/> Gantt View</button>
+            <button onClick={() => setViewMode('excel')} className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'excel' ? 'bg-white shadow text-emerald-700' : 'text-gray-600'}`}><ClipboardList className="w-4 h-4"/> Excel Paste</button>
           </div>
+
+          {selectedIds.length > 0 && viewMode === 'table' && (
+            <div className="flex items-center gap-2 pl-4 border-l border-gray-300 animate-in fade-in slide-in-from-left-2">
+              <span className="text-xs font-black text-emerald-700">Đã chọn {selectedIds.length} dòng</span>
+              <button onClick={onOpenBulkEdit} className="flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded text-[10px] font-bold hover:bg-amber-200 uppercase tracking-tight"><Edit3 className="w-3 h-3"/> Sửa nhanh</button>
+              <button onClick={() => onDelete(selectedIds)} className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded text-[10px] font-bold hover:bg-red-200 uppercase tracking-tight"><Trash2 className="w-3 h-3"/> Xóa mục chọn</button>
+            </div>
+          )}
         </div>
 
-        {viewMode === 'excel' ? (
-          <button 
-            onClick={handleSaveExcel}
-            style={{ backgroundColor: HEADER_COLOR }}
-            className="px-6 py-2 text-white rounded-lg flex items-center gap-2 hover:opacity-90 transition-all text-sm font-bold shadow-md"
-          >
-            <Save className="w-4 h-4" /> Lưu Kế hoạch
-          </button>
-        ) : (
-          <div className="text-xs text-gray-500 font-medium">
-            Đang hiển thị: <span className="text-emerald-700 font-bold">{selectedUnit === 'All' ? 'Tất cả Đơn vị' : selectedUnit}</span>
-          </div>
+        {viewMode === 'excel' && (
+          <button onClick={saveExcelData} style={{ backgroundColor: HEADER_COLOR }} className="px-6 py-2 text-white rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:brightness-110 active:scale-95 transition-all"><Save className="w-4 h-4" /> Lưu dữ liệu Excel</button>
         )}
       </div>
 
-      {/* CONTENT AREA */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 custom-scrollbar">
+        {/* VIEW 1: TABLE GRID (INLINE EDIT) */}
         {viewMode === 'table' && (
-          <table className="w-full text-sm text-left border-collapse">
-            <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] sticky top-0 z-10">
-              <tr>
-                <th className="px-4 py-3 border-b font-bold w-32">Đơn vị</th>
-                <th className="px-4 py-3 border-b font-bold">Nội dung công việc</th>
-                <th className="px-4 py-3 border-b font-bold text-center w-32">Bắt đầu</th>
-                <th className="px-4 py-3 border-b font-bold text-center w-32">Kết thúc</th>
-                <th className="px-4 py-3 border-b w-10"></th>
+          <table className="w-full text-xs border-collapse">
+            <thead className="bg-gray-100 sticky top-0 z-20">
+              <tr className="text-gray-500 uppercase text-[10px] tracking-widest">
+                <th className="p-3 border-b text-center w-12">
+                  <button onClick={toggleSelectAll} className="hover:text-emerald-600 transition-colors">
+                    {selectedIds.length === tasks.length && tasks.length > 0 ? <CheckSquare className="w-5 h-5 text-emerald-600"/> : <Square className="w-5 h-5"/>}
+                  </button>
+                </th>
+                <th className="p-3 border-b font-black w-32 text-left">Đơn vị</th>
+                <th className="p-3 border-b font-black text-left">Nội dung công việc</th>
+                <th className="p-3 border-b font-black text-center w-40">Ngày bắt đầu</th>
+                <th className="p-3 border-b font-black text-center w-40">Ngày kết thúc</th>
+                <th className="p-3 border-b font-black text-center w-20">Đậm</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {tasks.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="px-4 py-10 text-center text-gray-400 italic">Chưa có dữ liệu kế hoạch.</td>
-                </tr>
+                <tr><td colSpan="6" className="p-10 text-center text-gray-400 italic">Không có dữ liệu hiển thị. Hãy chọn "Excel Paste" để nhập nhanh.</td></tr>
               ) : (
                 tasks.map((task) => (
-                  <tr key={task.id} className="group hover:bg-slate-50/80 transition-colors">
-                    <td className="px-4 py-3 text-indigo-600 font-medium">{task.unit}</td>
-                    <td className={`px-4 py-3 ${task.bold ? 'font-black text-gray-900 border-l-4 border-emerald-500 pl-3' : 'text-gray-700'}`}>
-                      {task.name}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-500">{formatDateDisplay(task.start)}</td>
-                    <td className="px-4 py-3 text-center text-gray-500">{formatDateDisplay(task.end)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <button 
-                        onClick={() => window.confirm('Xóa công việc này?') && onDelete(task.id)}
-                        className="text-gray-300 hover:text-red-500 transition-colors p-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
+                  <tr key={task.id} className={`group border-b border-gray-50 transition-colors ${selectedIds.includes(task.id) ? 'bg-emerald-50/50' : 'hover:bg-slate-50'}`}>
+                    <td className="p-2 text-center">
+                      <button onClick={() => toggleSelectOne(task.id)}>
+                        {selectedIds.includes(task.id) ? <CheckSquare className="w-4 h-4 text-emerald-600"/> : <Square className="w-4 h-4 text-gray-300 group-hover:text-gray-400"/>}
                       </button>
+                    </td>
+                    <td className="p-1">
+                      <input className="w-full p-2 bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-emerald-300 rounded font-bold text-indigo-700" value={task.unit || ''} onChange={(e) => handleInlineChange(task.id, 'unit', e.target.value)} />
+                    </td>
+                    <td className="p-1">
+                      <input className={`w-full p-2 bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-emerald-300 rounded ${task.bold ? 'font-black text-black' : 'text-gray-700'}`} value={task.name || ''} onChange={(e) => handleInlineChange(task.id, 'name', e.target.value)} />
+                    </td>
+                    <td className="p-1">
+                      <input type="date" className="w-full p-2 bg-transparent outline-none focus:bg-white text-center" value={task.start || ''} onChange={(e) => handleInlineChange(task.id, 'start', e.target.value)} />
+                    </td>
+                    <td className="p-1">
+                      <input type="date" className="w-full p-2 bg-transparent outline-none focus:bg-white text-center" value={task.end || ''} onChange={(e) => handleInlineChange(task.id, 'end', e.target.value)} />
+                    </td>
+                    <td className="p-1 text-center">
+                      <input type="checkbox" checked={task.bold || false} onChange={(e) => handleInlineChange(task.id, 'bold', e.target.checked)} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
                     </td>
                   </tr>
                 ))
@@ -219,39 +217,34 @@ export default function ProjectPlanManager({
           </table>
         )}
 
+        {/* VIEW 2: GANTT CHART */}
         {viewMode === 'gantt' && (
-          <div className="min-w-[1000px] pb-10">
-            {/* Timeline Header */}
-            <div className="flex border-b border-gray-200 mb-4 bg-gray-50 rounded-t-lg sticky top-0 z-20">
-              <div className="w-72 shrink-0 p-3 border-r font-bold text-[10px] text-gray-400 uppercase tracking-wider">Danh mục công việc</div>
+          <div className="min-w-[1200px] select-none">
+            {/* Timeline Headers */}
+            <div className="flex border-b border-gray-200 sticky top-0 z-20 bg-white">
+              <div className="w-80 shrink-0 p-4 border-r font-black text-[10px] text-gray-400 uppercase tracking-widest bg-gray-50">Danh mục tiến độ</div>
               <div className="flex-1 flex">
                 {ganttData.months.map((m, i) => (
-                  <div key={i} className="flex-1 text-center p-3 text-[10px] font-bold border-r text-gray-500 border-gray-200 bg-white">
-                    Tháng {m.getMonth() + 1}/{m.getFullYear()}
+                  <div key={i} className="flex-1 text-center py-4 text-[10px] font-black border-r border-gray-100 text-emerald-800 bg-emerald-50/20">
+                    THÁNG {m.getMonth() + 1} / {m.getFullYear()}
                   </div>
                 ))}
               </div>
             </div>
-
-            {/* Gantt Rows */}
-            <div className="space-y-1 relative">
+            {/* Gantt Bars */}
+            <div className="mt-2 space-y-1.5 pb-20">
               {ganttData.tasksWithPos.map((task) => (
-                <div key={task.id} className="flex group hover:bg-slate-50 items-center border-b border-gray-50">
-                  <div className={`w-72 shrink-0 px-3 py-2 border-r text-xs truncate ${task.bold ? 'font-bold text-emerald-900 bg-emerald-50/30' : 'text-gray-600'}`}>
+                <div key={task.id} className="flex group hover:bg-slate-50 items-center">
+                  <div className={`w-80 shrink-0 px-4 py-2 border-r text-xs truncate ${task.bold ? 'font-black text-black' : 'text-gray-500'}`}>
                     {task.name}
                   </div>
-                  <div className="flex-1 h-10 relative">
+                  <div className="flex-1 h-10 relative bg-gray-50/30">
                     <div 
-                      className={`absolute top-2 h-6 rounded-md shadow-sm transition-all duration-500 flex items-center px-2 text-[9px] text-white font-bold whitespace-nowrap overflow-hidden group-hover:brightness-110
-                        ${task.bold ? 'bg-emerald-600 z-10' : 'bg-amber-400/90'}`}
-                      style={{ 
-                        left: `${task.left}%`, 
-                        width: `${task.width}%`,
-                        minWidth: '6px' 
-                      }}
-                      title={`${task.name}: ${formatDateDisplay(task.start)} - ${formatDateDisplay(task.end)}`}
+                      className={`absolute top-2 h-6 rounded shadow-sm transition-all duration-700 flex items-center px-2 text-[8px] text-white font-bold whitespace-nowrap overflow-hidden
+                        ${task.bold ? 'bg-emerald-600 z-10 shadow-emerald-200' : 'bg-amber-400 opacity-80 group-hover:opacity-100'}`}
+                      style={{ left: `${task.left}%`, width: `${task.width}%`, minWidth: '4px' }}
                     >
-                      {task.width > 8 && formatDateDisplay(task.start)}
+                      {task.width > 5 && formatDateDisplay(task.start)}
                     </div>
                   </div>
                 </div>
@@ -260,64 +253,42 @@ export default function ProjectPlanManager({
           </div>
         )}
 
+        {/* VIEW 3: EXCEL PASTE MODE */}
         {viewMode === 'excel' && (
-          <div className="flex flex-col gap-4">
-            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5" />
+          <div className="max-w-6xl mx-auto flex flex-col gap-4">
+            <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
               <div>
-                <p className="text-sm font-bold text-blue-800">Hướng dẫn dán từ Excel</p>
-                <p className="text-xs text-blue-700 mt-1">
-                  Copy vùng dữ liệu trong Excel (cột Đơn vị, Tên việc, Ngày bắt đầu, Ngày kết thúc, In đậm) rồi chọn ô đầu tiên bên dưới và nhấn <kbd className="bg-white border rounded px-1 px-0.5">Ctrl + V</kbd>. 
-                  Định dạng ngày hỗ trợ cả <strong>DD/MM/YYYY</strong> và <strong>YYYY-MM-DD</strong>.
-                </p>
+                <p className="text-sm font-bold text-amber-800 tracking-tight">Quy trình nhập dữ liệu hàng loạt</p>
+                <p className="text-xs text-amber-700 mt-1">1. Copy vùng dữ liệu từ Excel (Cột: Đơn vị, Nội dung, Bắt đầu, Kết thúc, Đậm). | 2. Chọn ô đầu tiên dưới đây. | 3. Nhấn Ctrl+V.</p>
               </div>
             </div>
-
-            <div className="border rounded-lg overflow-hidden bg-gray-50 p-2">
-              <table className="w-full text-xs border-collapse bg-white">
+            <div className="border rounded-lg bg-white p-2 shadow-inner">
+              <table className="w-full text-xs border-collapse">
                 <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border p-2 w-10 text-center">#</th>
-                    {columns.map((col, i) => (
-                      <th key={i} className="border p-2 text-left text-gray-600">{col.label}</th>
-                    ))}
-                    <th className="border p-2 w-10"></th>
+                  <tr className="bg-gray-100 text-gray-500">
+                    <th className="border p-2 w-10">#</th>
+                    <th className="border p-2">Đơn vị</th>
+                    <th className="border p-2 text-left">Tên công việc</th>
+                    <th className="border p-2 w-40">Bắt đầu</th>
+                    <th className="border p-2 w-40">Kết thúc</th>
+                    <th className="border p-2 w-20">Đậm (x)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {gridRows.map((row, rIdx) => (
+                  {excelGridRows.map((row, rIdx) => (
                     <tr key={rIdx}>
-                      <td className="border text-center text-gray-400 bg-gray-50">{rIdx + 1}</td>
-                      {columns.map((col, cIdx) => (
-                        <td key={cIdx} className="border p-0 focus-within:ring-2 focus-within:ring-emerald-500 z-10">
-                          <input 
-                            type="text"
-                            placeholder={col.key === 'bold' ? 'Gõ x để in đậm' : ''}
-                            className="w-full p-2.5 outline-none transition-colors focus:bg-emerald-50"
-                            value={row[col.key] || ''}
-                            onChange={(e) => handleGridChange(rIdx, col.key, e.target.value)}
-                            onPaste={(e) => handleGridPaste(e, rIdx, cIdx)}
-                          />
-                        </td>
-                      ))}
-                      <td className="border text-center">
-                        <button 
-                          onClick={() => setGridRows(gridRows.filter((_, i) => i !== rIdx))}
-                          className="text-red-300 hover:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
+                      <td className="border p-2 text-center bg-gray-50 text-gray-400 font-mono">{rIdx + 1}</td>
+                      <td className="border p-0"><input className="w-full p-2 outline-none focus:bg-blue-50" value={row.unit || ''} onPaste={(e) => handleExcelPaste(e, rIdx, 0)} onChange={(e) => { const n = [...excelGridRows]; n[rIdx].unit = e.target.value; setExcelGridRows(n); }} /></td>
+                      <td className="border p-0"><input className="w-full p-2 outline-none focus:bg-blue-50" value={row.name || ''} onPaste={(e) => handleExcelPaste(e, rIdx, 1)} onChange={(e) => { const n = [...excelGridRows]; n[rIdx].name = e.target.value; setExcelGridRows(n); }} /></td>
+                      <td className="border p-0"><input className="w-full p-2 outline-none focus:bg-blue-50 text-center" value={row.start || ''} onPaste={(e) => handleExcelPaste(e, rIdx, 2)} onChange={(e) => { const n = [...excelGridRows]; n[rIdx].start = e.target.value; setExcelGridRows(n); }} /></td>
+                      <td className="border p-0"><input className="w-full p-2 outline-none focus:bg-blue-50 text-center" value={row.end || ''} onPaste={(e) => handleExcelPaste(e, rIdx, 3)} onChange={(e) => { const n = [...excelGridRows]; n[rIdx].end = e.target.value; setExcelGridRows(n); }} /></td>
+                      <td className="border p-0"><input className="w-full p-2 outline-none focus:bg-blue-50 text-center" value={row.bold || ''} onPaste={(e) => handleExcelPaste(e, rIdx, 4)} onChange={(e) => { const n = [...excelGridRows]; n[rIdx].bold = e.target.value; setExcelGridRows(n); }} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <button 
-                onClick={() => setGridRows([...gridRows, {}])}
-                className="mt-4 flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 px-2"
-              >
-                <Plus className="w-4 h-4" /> Thêm dòng trống
-              </button>
+              <button onClick={() => setExcelGridRows([...excelGridRows, {}])} className="mt-4 flex items-center gap-2 text-xs font-black text-emerald-700 hover:opacity-70 px-2 uppercase"><Plus className="w-4 h-4"/> Thêm dòng mới</button>
             </div>
           </div>
         )}
