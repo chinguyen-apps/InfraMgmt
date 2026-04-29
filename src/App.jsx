@@ -61,6 +61,17 @@ export default function App() {
       
       // 1. Tự động nội suy Header Map từ dòng dữ liệu đầu tiên và file Config
       const mapping = {};
+      // Ngay cả khi rawData trống, ta vẫn tạo mapping mặc định từ configMapping
+      if (configMapping) {
+        const rawKeys = rawData.length > 0 ? Object.keys(rawData[0]) : [];
+        configMapping.forEach(col => {
+          // Nếu có dữ liệu thực tế, map theo thực tế
+          if (rawKeys.includes(col.key)) mapping[col.key] = col.key;
+          else if (rawKeys.includes(col.label)) mapping[col.label] = col.key;
+          // Nếu sheet trống, mặc định map English -> English (khớp với DEFAULT_HEADERS ở GAS)
+          else if (rawData.length === 0) mapping[col.key] = col.key;
+        });
+      }
       if (rawData.length > 0 && configMapping) {
          const rawKeys = Object.keys(rawData[0]);
          configMapping.forEach(col => {
@@ -116,12 +127,7 @@ export default function App() {
     setApps(processData('app', data.app, modalConfigs.app));
     setConnections(processData('connection', data.connection, modalConfigs.connection));
 
-    setProjectPlans(processData('projectPlan', data.projectPlan, [
-      { key: 'unit', label: 'Đơn vị' },
-      { key: 'name', label: 'Tên công việc' },
-      { key: 'start', label: 'Bắt đầu' },
-      { key: 'end', label: 'Kết thúc' }
-    ]));
+    setProjectPlans(processData('projectPlan', data.projectPlan, modalConfigs.projectPlan));
 
     // Fix map cứng cho các bảng hệ thống (đề phòng config của anh chưa có mảng này)
     const paramConfig = [{key: 'code', label: 'Tên tham số'}, {key: 'type', label: 'Loại'}, {key: 'value', label: 'Giá trị'}, {key: 'desc', label: 'Mô tả'}];
@@ -308,9 +314,13 @@ export default function App() {
 
   const getRawItemForApi = (type, normalizedItem) => {
     const mapping = headerMaps[type];
-    if (!mapping) return normalizedItem;
+    if (!mapping || Object.keys(mapping).length === 0) return normalizedItem;
     const rawItem = { id: normalizedItem.id };
-    Object.keys(mapping).forEach(key => { rawItem[mapping[key]] = normalizedItem[key]; });
+    Object.keys(mapping).forEach(key => {
+      if (normalizedItem[key] !== undefined) {
+        rawItem[mapping[key]] = normalizedItem[key];
+      }
+    });
 
     // --- SỬA ĐOẠN NÀY ĐỂ GIỮ LẠI MẬT KHẨU ---
     if (type === 'systemUser' && normalizedItem.password) {
