@@ -6,6 +6,7 @@ export const API_URL = "https://gas-proxy.wikjin.workers.dev";
 
 export const SYSTEM_MODULES = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'projectPlan', label: 'Kế hoạch Triển khai' },
   { id: 'servers', label: 'Máy chủ (Server)' },
   { id: 'vips', label: 'Virtual IPs (VIPs)' },
   { id: 'dns', label: 'DNS Records' },
