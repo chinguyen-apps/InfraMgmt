@@ -788,8 +788,26 @@ export default function App() {
             <ProjectPlanManager 
               tasks={filteredProjectPlans} 
               selectedUnit={selectedUnit}
+              // Quản lý chọn nhiều dòng
+              selectedIds={selectedItems['projectPlan'] || []}
+              setSelectedIds={(ids) => setSelectedItems({ ...selectedItems, projectPlan: ids })}
+              // Xử lý hàng loạt
+              onOpenBulkEdit={() => {
+                setBulkEditData({ type: 'projectPlan', field: 'unit', value: '' });
+                setShowBulkEditModal(true);
+              }}
+              // Cập nhật từng dòng (Inline Edit)
+              onUpdateRow={async (id, data) => {
+                setProjectPlans(projectPlans.map(p => p.id === id ? { ...p, ...data } : p));
+                await callApi({ 
+                  action: 'update', 
+                  type: 'projectPlan', 
+                  id: id, 
+                  data: getRawItemForApi('projectPlan', data) 
+                }, setIsSyncing);
+              }}
               onBulkCreate={handleBulkCreateProjectPlan}
-              onDelete={(id) => handleDeleteSelected('projectPlan', [id])}
+              onDelete={(ids) => handleDeleteSelected('projectPlan', ids)}
             />
           )}
           {activeTab === 'servers' && hasViewPermission('servers') && <GenericTable title="Quản lý Máy chủ (Server)" type="server" moduleId="servers" data={filteredServers} config={modalConfigs.server} selectedItems={selectedItems} setSelectedItems={setSelectedItems} hasAddPermission={hasAddPermission('servers')} setBulkEditData={setBulkEditData} setShowBulkEditModal={setShowBulkEditModal} handleDeleteSelected={handleDeleteSelected} openAddModal={openAddModal} openEditModal={openEditModal} />}
