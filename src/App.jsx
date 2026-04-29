@@ -129,11 +129,10 @@ export default function App() {
 
     setProjectPlans(processData('projectPlan', data.projectPlan, modalConfigs.projectPlan).map(item => ({
       ...item,
-      // Ép định dạng YYYY-MM-DD để input date hiện được giá trị
       start: item.start ? new Date(item.start).toISOString().split('T')[0] : '',
       end: item.end ? new Date(item.end).toISOString().split('T')[0] : '',
-      // Chuẩn hóa logic Bold từ Google Sheet
-      bold: item.bold === true || String(item.bold).toLowerCase() === 'true' || String(item.bold).toLowerCase() === 'x'
+      // Chuyển level về dạng số hoặc null để dễ xử lý style
+      level: item.level ? parseInt(item.level) : null 
     })));
 
     // Fix map cứng cho các bảng hệ thống (đề phòng config của anh chưa có mảng này)
