@@ -24,7 +24,7 @@ export const modalConfigs = {
     { key: 'name', label: 'Tên công việc' },
     { key: 'start', label: 'Bắt đầu' },
     { key: 'end', label: 'Kết thúc' },
-    { key: 'bold', label: 'In đậm' }
+    { key: 'level', label: 'Cấp độ (1-3)' }
   ],
   server: [
     { key: 'unit', label: 'Đơn vị' }, { key: 'env', label: 'Môi trường' }, { key: 'hostname', label: 'Hostname' },
