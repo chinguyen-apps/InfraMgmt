@@ -152,8 +152,9 @@ export default function App() {
   // 1. Khai báo hàm fetchData chứa TẤT CẢ logic xử lý dữ liệu của bạn
   const fetchData = async () => {
     // 1. NGAY LẬP TỨC: Thử lấy dữ liệu cũ từ LocalStorage hiển thị trước
+    const token = localStorage.getItem('auth_token');
     const cachedLocalData = localStorage.getItem('infra_app_data');
-    if (cachedLocalData) {
+    if (token && cachedLocalData) {
         try {
             applyDataToStates(JSON.parse(cachedLocalData));
             setIsLoading(false); // Tắt loading full-screen ngay lập tức nếu có cache!
@@ -175,9 +176,11 @@ export default function App() {
              localStorage.setItem('current_user', JSON.stringify(res.user));
           }
         } else if (res && res.status === 'error') {
-           if (res.message && !String(res.message).includes("Unauthorized")) {
+           if (String(res.message).includes("Unauthorized")) {
+              handleLogout(); // Nếu Token hết hạn, ép logout luôn cho sạch
+          } else {
               setApiError(res.message);
-           }
+          }
         }
     } catch (error) {
         console.error("Lỗi ngầm khi fetch data:", error);
