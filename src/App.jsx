@@ -388,13 +388,15 @@ export default function App() {
     setActiveTab('appStore'); 
     setLoginForm({ username: '', password: '' }); 
     // Clear TẤT CẢ dữ liệu bảo mật khỏi state, bao gồm cả User và Group
+    setProjectPlans([]);
     setServers([]); 
     setVips([]); 
     setDns([]); 
     setConnections([]); 
     setPermissions([]);
-    setSystemUsers([]); // Thêm dòng này
-    setUserGroups([]);  // Thêm dòng này
+    setSystemUsers([]); 
+    setUserGroups([]);  
+    setApps([]);
   };
 
   // 1. Định nghĩa hàm điều hướng kèm filter
