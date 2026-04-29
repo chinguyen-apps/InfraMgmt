@@ -23,6 +23,7 @@ export default function Sidebar({ activeTab, setActiveTab, hasViewPermission }) 
       </div>
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
         <TabBtn id="dashboard" icon={LayoutDashboard} label="Dashboard" />
+        <TabBtn id="projectPlan" icon={List} label="Kế hoạch Triển khai" />
         
         {showResourceGroup && <div className="pt-4 pb-2 px-4 text-xs font-semibold text-white/50 uppercase tracking-wider">Tài nguyên</div>}
         <TabBtn id="servers" icon={Server} label="Máy chủ (Servers)" />
